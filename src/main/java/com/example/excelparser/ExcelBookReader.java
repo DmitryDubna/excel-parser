@@ -9,10 +9,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class ExcelBookReader {
@@ -30,15 +27,33 @@ public class ExcelBookReader {
         formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
     }
 
-    public Map<String, String> getPostgresTypes(Sheet sheet, int headerIndex, int dataIndex) {
+    /// Формирует коллекцию типов данных по индексу строки заголовка
+    public Map<String, String> getPostgresTypes(Sheet sheet, int dataIndex, int headerIndex) {
         var result = new LinkedHashMap<String, String>();
 
         sheet.getRow(headerIndex).forEach(cell -> {
             int column = cell.getAddress().getColumn();
-            String fieldName = TRANSLITERATOR.transliterate(cell.getStringCellValue()).strip().replaceAll("\\W+", "_");
-            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(column));
+            String fieldName = TRANSLITERATOR
+                    .transliterate(cell.getStringCellValue())
+                    .strip()
+                    .replaceAll("\\W+", "_");
+            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
         });
+        return result;
+    }
+
+    /// Формирует коллекцию типов данных по списку имен колонок
+    public Map<String, String> getPostgresTypes(Sheet sheet, int dataIndex, List<String> headerNames) {
+        var result = new LinkedHashMap<String, String>();
+
+        for (int i = 0; i < headerNames.size(); i++) {
+            String fieldName = headerNames.get(i)
+                    .strip()
+                    .replaceAll("\\W+", "_");;
+            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            result.put(fieldName, fieldType);
+        }
         return result;
     }
 
@@ -63,18 +78,23 @@ public class ExcelBookReader {
                 .collect(Collectors.joining(", "));
     }
 
-    public String toPostgresTableValues(Sheet sheet, int rowFrom) {
+    public String toPostgresTableValues(Sheet sheet, int columnCount, int rowFrom) {
         var result = new ArrayList<String>();
+
         for (int i = rowFrom; i <= sheet.getLastRowNum(); i++) {
-            String rowValues = toPostgresRowValues(sheet.getRow(i), formulaEvaluator);
+            String rowValues = toPostgresRowValues(sheet.getRow(i), columnCount);
             result.add(rowValues);
         }
         return result.stream().collect(Collectors.joining(", ", "(", ")"));
     }
 
-    private String toPostgresRowValues(Row row, FormulaEvaluator formulaEvaluator) {
+    private String toPostgresRowValues(Row row, int columnCount) {
         var values = new ArrayList<String>();
-        row.forEach(cell -> values.add("'%s'".formatted(toValue(cell))));
+
+        for (int i = 0; i < columnCount; i++) {
+            Cell cell = row.getCell(i, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            values.add(Objects.isNull(cell) ? "null" : "'%s'".formatted(toValue(cell)));
+        }
         return String.join(", ", values);
     }
 
@@ -112,6 +132,7 @@ public class ExcelBookReader {
 
     private Optional<Object> evaluateFormula(Cell cell) {
         CellType cellType = formulaEvaluator.evaluateFormulaCell(cell);
+
         switch (cellType) {
             case NUMERIC -> {
                 return Optional.of(cell.getNumericCellValue());
