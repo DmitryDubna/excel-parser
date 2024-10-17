@@ -1,6 +1,7 @@
 package com.example.excelparser.utils.excel;
 
 import com.ibm.icu.text.Transliterator;
+import jakarta.validation.constraints.NotEmpty;
 import lombok.ToString;
 
 import java.util.ArrayList;
@@ -11,7 +12,8 @@ import java.util.stream.Collectors;
 @ToString
 public class ExcelProcessorPropertyParser {
     private static final Transliterator TRANSLITERATOR = Transliterator.getInstance("Russian-Latin/BGN");
-    private final int DEFAULT_FIRST_DATA_ROW = 2;
+    private final int DEFAULT_FIRST_DATA_ROW = 1;
+    @NotEmpty(message = "Список имен Excel-листов должен быть непустым")
     private List<String> sheetNames;
     private List<String> dbTableNames;
     private List<Integer> firstDataRows;
@@ -31,8 +33,8 @@ public class ExcelProcessorPropertyParser {
         return new ExcelProcessorPropertyParserBuilder();
     }
 
-    public List<DbTablePropertyHolder> buildPropertyHolders() {
-        var result = new ArrayList<DbTablePropertyHolder>();
+    public List<QueryPropertyHolder> buildQueryPropertyHolders() {
+        var result = new ArrayList<QueryPropertyHolder>();
         for (int i = 0; i < sheetNames.size(); i++) {
             String sheetName = sheetNames.get(i);
 //            String dbTableName = (dbTableNames.size() > i)
@@ -40,7 +42,7 @@ public class ExcelProcessorPropertyParser {
 //                    : TRANSLITERATOR.transliterate(sheetName).strip().replaceAll("\\W+", "_");
 //            List<String> dbCoumnNames = (dbColumnNames.size() > i) ? dbColumnNames.get(i) : List.of();
 
-            DbTablePropertyHolder propertyHolder = DbTablePropertyHolder.builder()
+            QueryPropertyHolder propertyHolder = QueryPropertyHolder.builder()
                     .sheetName(sheetName)
                     .dbTableName(
                             (dbTableNames.size() > i)
@@ -93,6 +95,10 @@ public class ExcelProcessorPropertyParser {
                             .map(String::trim)
                             .collect(Collectors.toList())
                     )
+                    .peek(strings -> {
+                        if ((strings.size() == 1) && strings.get(0).isBlank())
+                            strings.clear();
+                    })
                     .collect(Collectors.toList());
             return this;
         }

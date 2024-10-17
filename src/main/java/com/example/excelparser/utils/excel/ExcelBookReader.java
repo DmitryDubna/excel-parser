@@ -1,4 +1,4 @@
-package com.example.excelparser;
+package com.example.excelparser.utils.excel;
 
 import com.ibm.icu.text.Transliterator;
 import lombok.Getter;
@@ -69,13 +69,6 @@ public class ExcelBookReader {
                 return "TEXT";
             }
         }
-    }
-
-    public String toPostgresTypesString(Map<String, String> postgresTypes) {
-        return postgresTypes.entrySet()
-                .stream()
-                .map(entry -> "%s %s".formatted(entry.getKey(), entry.getValue()))
-                .collect(Collectors.joining(", "));
     }
 
     public String toPostgresTableValues(Sheet sheet, int columnCount, int rowFrom) {
