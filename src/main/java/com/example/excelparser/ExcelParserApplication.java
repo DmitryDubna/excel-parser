@@ -23,19 +23,17 @@ public class ExcelParserApplication {
         try (FileInputStream inputStream = new FileInputStream(new File("/home/dmitry/Загрузки/analize_data_2.xlsx"))) {
 
             var propertyParser = ExcelProcessorPropertyParser.builder()
-                    .sheetNames("База, Код НП, Код станции")
-                    .dbTableNames("Base, CodeNP, StationCode")
-                    .firstDataRows("111554, 3, 3")
-                    .dbColumnNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
+                    .sheetNames("База")
+//                    .dbTableNames("Base")
+//                    .firstDataRows("2, 315, 104")
+//                    .dbColumnNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
                     .build();
-//            System.out.println("propertyParser:\n" + propertyParser);
+            System.out.println("propertyParser:\n" + propertyParser);
 
             List<QueryPropertyHolder> queryPropertyHolders = propertyParser.buildQueryPropertyHolders();
             System.out.println("queryPropertyHolders:\n" + queryPropertyHolders);
 
             ExcelBookReader bookReader = new ExcelBookReader(inputStream);
-
-            QueryPropertyHolder holder = queryPropertyHolders.get(0);
 
             DatabaseWriter databaseWriter = DatabaseWriter.builder()
 //                    .connection(connection)
@@ -45,24 +43,10 @@ public class ExcelParserApplication {
 //                    .logger(getLogger())
                     .build();
 
+            QueryPropertyHolder holder = queryPropertyHolders.get(0);
             databaseWriter.write(holder);
 
-//            Sheet sheet = bookReader.getWorkbook().getSheet(holder.getSheetName());
-
-//            Map<String, String> postgresTypes =
-//                    holder.getDbColumnNames().isEmpty()
-//                            // имена и типы данных для postgres (по строке данных)
-//                            ? bookReader.getPostgresTypes(sheet, holder.getFirstDataRow(), 0)
-//                            // имена и типы данных для postgres (по списку имен столбцов)
-//                            : bookReader.getPostgresTypes(sheet, holder.getFirstDataRow(), holder.getDbColumnNames());
-//            System.out.println("postgresTypes:\n" + postgresTypes);
-
-//            String fieldsDefinition = bookReader.toFieldsDefinitionString(postgresTypes);
-//            System.out.println("fieldsDefinition:\n" + fieldsDefinition);
-
-//            // значения для postgres
-//            String values = bookReader.toPostgresTableValues(sheet, postgresTypes.size(), 111554);
-//            System.out.println("values:\n" + values);
+//            databaseWriter.write(queryPropertyHolders);
         } catch (IOException e) {
             e.printStackTrace();
         }

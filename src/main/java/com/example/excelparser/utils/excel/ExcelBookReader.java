@@ -71,54 +71,62 @@ public class ExcelBookReader {
         }
     }
 
-    public String toPostgresTableValues(Sheet sheet, int columnCount, int rowFrom) {
+    public String toPostgresTableValues(Sheet sheet, List<String> fieldTypes, int rowFrom) {
         var result = new ArrayList<String>();
 
         for (int i = rowFrom; i <= sheet.getLastRowNum(); i++) {
-            String rowValues = toPostgresRowValues(sheet.getRow(i), columnCount);
+            String rowValues = toPostgresRowValues(sheet.getRow(i), fieldTypes);
             result.add(rowValues);
         }
-        return result.stream().collect(Collectors.joining(", ", "(", ")"));
+        return String.join(", ", result);
     }
 
-    private String toPostgresRowValues(Row row, int columnCount) {
+    private String toPostgresRowValues(Row row, List<String> fieldTypes) {
         var values = new ArrayList<String>();
 
-        for (int i = 0; i < columnCount; i++) {
+        for (int i = 0; i < fieldTypes.size(); i++) {
             Cell cell = row.getCell(i, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
-            values.add(Objects.isNull(cell) ? "null" : "'%s'".formatted(toValue(cell)));
+            values.add(Objects.isNull(cell) ? "null" : toPostgresString(cell, fieldTypes.get(i)));
         }
-        return String.join(", ", values);
+        return values.stream().collect(Collectors.joining(", ", "(", ")"));
     }
 
-    private String toValue(Cell cell) {
+    private String toPostgresString(Cell cell, String fieldType) {
+        return Optional.ofNullable(toValue(cell, fieldType))
+                .map(value -> "'%s'".formatted(value))
+                .orElse("null");
+    }
+
+    private String toValue(Cell cell, String fieldType) {
         switch (cell.getCellType()) {
-            case _NONE -> {
-                return "NONE";
-            }
             case NUMERIC -> {
-                return DateUtil.isCellDateFormatted(cell)
-                        ? cell.getLocalDateTimeCellValue().format(DateTimeFormatter.ISO_DATE)
-                        : Double.toString(cell.getNumericCellValue());
+                // дата
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return (fieldType.equals("TIMESTAMP"))
+                            ? cell.getLocalDateTimeCellValue().format(DateTimeFormatter.ISO_DATE)
+                            : null;
+                }
+                // число
+                return (fieldType.equals("DOUBLE PRECISION"))
+                        ? Double.valueOf(cell.getNumericCellValue()).toString()
+                        : null;
             }
-            case STRING -> {
-                return cell.getStringCellValue();
+            case BOOLEAN -> {
+                return (fieldType.equals("BOOLEAN"))
+                        ? Boolean.toString(cell.getBooleanCellValue())
+                        : null;
             }
             case FORMULA -> {
                 Optional<Object> value = evaluateFormula(cell);
                 return value.map(String::valueOf).orElse("null");
             }
-            case BLANK -> {
-                return "";
-            }
-            case BOOLEAN -> {
-                return Boolean.toString(cell.getBooleanCellValue());
-            }
-            case ERROR -> {
-                return Byte.toString(cell.getErrorCellValue());
+            case STRING -> {
+                return (fieldType.equals("TEXT"))
+                        ? cell.getStringCellValue()
+                        : null;
             }
             default -> {
-                return "-";
+                return null;
             }
         }
     }

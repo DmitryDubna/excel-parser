@@ -1,33 +1,27 @@
 package com.example.excelparser.utils.excel;
 
 import com.ibm.icu.text.Transliterator;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
 import lombok.ToString;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
+@AllArgsConstructor
 @ToString
 public class ExcelProcessorPropertyParser {
     private static final Transliterator TRANSLITERATOR = Transliterator.getInstance("Russian-Latin/BGN");
     private final int DEFAULT_FIRST_DATA_ROW = 1;
-    @NotEmpty(message = "Список имен Excel-листов должен быть непустым")
     private List<String> sheetNames;
     private List<String> dbTableNames;
     private List<Integer> firstDataRows;
     private List<List<String>> dbColumnNames;
-
-    ExcelProcessorPropertyParser(List<String> sheetNames,
-                                 List<String> dbTableNames,
-                                 List<Integer> firstDataRows,
-                                 List<List<String>> dbColumnNames) {
-        this.sheetNames = sheetNames;
-        this.dbTableNames = dbTableNames;
-        this.firstDataRows = firstDataRows;
-        this.dbColumnNames = dbColumnNames;
-    }
 
     public static ExcelProcessorPropertyParserBuilder builder() {
         return new ExcelProcessorPropertyParserBuilder();
@@ -37,11 +31,6 @@ public class ExcelProcessorPropertyParser {
         var result = new ArrayList<QueryPropertyHolder>();
         for (int i = 0; i < sheetNames.size(); i++) {
             String sheetName = sheetNames.get(i);
-//            String dbTableName = (dbTableNames.size() > i)
-//                    ? dbTableNames.get(i)
-//                    : TRANSLITERATOR.transliterate(sheetName).strip().replaceAll("\\W+", "_");
-//            List<String> dbCoumnNames = (dbColumnNames.size() > i) ? dbColumnNames.get(i) : List.of();
-
             QueryPropertyHolder propertyHolder = QueryPropertyHolder.builder()
                     .sheetName(sheetName)
                     .dbTableName(
@@ -59,51 +48,53 @@ public class ExcelProcessorPropertyParser {
 
 
     public static class ExcelProcessorPropertyParserBuilder {
-        private List<String> sheetNames;
-        private List<String> dbTableNames;
-        private List<Integer> firstDataRows;
-        private List<List<String>> dbColumnNames;
+        private List<String> sheetNames = new ArrayList<>();
+        private List<String> dbTableNames = new ArrayList<>();
+        private List<Integer> firstDataRows = new ArrayList<>();
+        private List<List<String>> dbColumnNames = new ArrayList<>();
 
         ExcelProcessorPropertyParserBuilder() {
         }
 
-        public ExcelProcessorPropertyParserBuilder sheetNames(String sheetNames) {
-            this.sheetNames = Arrays.stream(sheetNames.split(","))
+        private List<String> toStringList(String s) {
+            if (s.isBlank())
+                return List.of();
+
+            return Arrays.stream(s.split(","))
                     .map(String::trim)
+                    .filter(Objects::nonNull)
                     .collect(Collectors.toList());
+        }
+
+        public ExcelProcessorPropertyParserBuilder sheetNames(String sheetNames) {
+            this.sheetNames = toStringList(sheetNames);
             return this;
         }
 
         public ExcelProcessorPropertyParserBuilder dbTableNames(String dbTableNames) {
-            this.dbTableNames = Arrays.stream(dbTableNames.split(","))
-                    .map(String::trim)
-                    .collect(Collectors.toList());
+            this.dbTableNames = toStringList(dbTableNames);
             return this;
         }
 
         public ExcelProcessorPropertyParserBuilder firstDataRows(String firstDataRows) {
             this.firstDataRows = Arrays.stream(firstDataRows.split(","))
                     .map(String::trim)
-                    .map(Integer::valueOf)
+                    .map(s -> Integer.valueOf(s) - 1)
                     .collect(Collectors.toList());
             return this;
         }
 
         public ExcelProcessorPropertyParserBuilder dbColumnNames(String dbColumnNames) {
             this.dbColumnNames = Arrays.stream(dbColumnNames.split(";"))
-                    .map(row -> Arrays.stream(row.split(","))
-                            .map(String::trim)
-                            .collect(Collectors.toList())
-                    )
-                    .peek(strings -> {
-                        if ((strings.size() == 1) && strings.get(0).isBlank())
-                            strings.clear();
-                    })
+                    .map(row -> toStringList(row))
                     .collect(Collectors.toList());
             return this;
         }
 
         public ExcelProcessorPropertyParser build() {
+            if (sheetNames.isEmpty())
+                throw new RuntimeException("Список имен листов не должен быть пустым!");
+
             return new ExcelProcessorPropertyParser(sheetNames, dbTableNames, firstDataRows, dbColumnNames);
         }
     }

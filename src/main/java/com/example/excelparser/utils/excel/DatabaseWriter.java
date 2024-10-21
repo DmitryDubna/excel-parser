@@ -52,8 +52,10 @@ public class DatabaseWriter {
 
         // имена полей
         String fieldNames = toFieldNames(postgresTypes);
+        // типы полей
+        List<String> fieldTypes = toFieldTypes(postgresTypes);
         // значения полей
-        String fieldValues = bookReader.toPostgresTableValues(sheet, postgresTypes.size(), holder.getFirstDataRow());
+        String fieldValues = bookReader.toPostgresTableValues(sheet, fieldTypes, holder.getFirstDataRow());
         // заполнение таблицы
         insertData(connection, schemeName, tableName, fieldNames, fieldValues);
     }
@@ -80,6 +82,13 @@ public class DatabaseWriter {
                 .collect(Collectors.joining(", "));
     }
 
+    private List<String> toFieldTypes(Map<String, String> postgresTypes) {
+        return postgresTypes.entrySet()
+                .stream()
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toList());
+    }
+
     private boolean checkIfTableExists(final Connection connection,
                                        final String schemeName,
                                        final String tableName) {
@@ -92,15 +101,16 @@ public class DatabaseWriter {
                     );
                     """.formatted(schemeName, tableName);
 
-        try (var statement = connection.createStatement()) {
-            ResultSet resultSet = statement.executeQuery(query);
-            return (resultSet.next())
-                    ? resultSet.getBoolean(1)
-                    : false;
-        } catch (SQLException e) {
-            logError(e.getMessage());
-            return false;
-        }
+//        try (var statement = connection.createStatement()) {
+//            ResultSet resultSet = statement.executeQuery(query);
+//            return (resultSet.next())
+//                    ? resultSet.getBoolean(1)
+//                    : false;
+//        } catch (SQLException e) {
+//            logError(e.getMessage());
+//            return false;
+//        }
+        return true;
     }
 
     private boolean createTable(final Connection connection,
@@ -144,12 +154,15 @@ public class DatabaseWriter {
     }
 
     private boolean executeUpdate(Connection connection, String query) {
-        try (var statement = connection.createStatement()) {
-            statement.executeUpdate(query);
-            return true;
-        } catch (SQLException e) {
-            logError(e.getMessage());
-            return false;
-        }
+        System.out.println("Query:\n%s\n".formatted(query));
+
+//        try (var statement = connection.createStatement()) {
+//            statement.executeUpdate(query);
+//            return true;
+//        } catch (SQLException e) {
+//            logError(e.getMessage());
+//            return false;
+//        }
+        return true;
     }
 }
