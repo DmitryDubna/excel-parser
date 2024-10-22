@@ -16,7 +16,9 @@ import java.util.stream.Collectors;
 @AllArgsConstructor
 @ToString
 public class ExcelProcessorPropertyParser {
+    @ToString.Exclude
     private static final Transliterator TRANSLITERATOR = Transliterator.getInstance("Russian-Latin/BGN");
+    @ToString.Exclude
     private final int DEFAULT_FIRST_DATA_ROW = 1;
     private List<String> sheetNames;
     private List<String> dbTableNames;

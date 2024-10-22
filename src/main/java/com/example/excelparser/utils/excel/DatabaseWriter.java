@@ -19,7 +19,9 @@ public class DatabaseWriter {
     private Connection connection;
     @NotNull
     private ExcelBookReader bookReader;
+    @Builder.Default
     private String schemeName = "public";
+    @Builder.Default
     private boolean overwrite = false;
     private ComponentLog logger;
 

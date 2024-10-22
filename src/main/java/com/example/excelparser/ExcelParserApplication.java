@@ -38,7 +38,7 @@ public class ExcelParserApplication {
             DatabaseWriter databaseWriter = DatabaseWriter.builder()
 //                    .connection(connection)
                     .bookReader(bookReader)
-                    .schemeName("data_mart")
+//                    .schemeName("data_mart")
                     .overwrite(true)
 //                    .logger(getLogger())
                     .build();
