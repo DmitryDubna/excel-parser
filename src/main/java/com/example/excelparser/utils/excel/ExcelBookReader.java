@@ -99,10 +99,15 @@ public class ExcelBookReader {
             return result;
 
         for (int i = 0; i < fieldNames.size(); i++) {
+            // берем значение ячейки, смщенное на indexFrom относительно начальной колонки
+            int cellIndex = indexFrom + i;
+            // формируем данные до columnToIndex
+            if (cellIndex > indexTo)
+                break;
+
             String fieldName = fieldNames.get(i)
                     .strip()
                     .replaceAll("\\W+", "_");
-            // берем значение ячейки, смщенное на indexFrom относительно начальной колонки
             String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(i + indexFrom, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
         }
