@@ -32,8 +32,8 @@ public class ExcelParserApplication {
                     .dbTableNames("Base, Dict")
                     .firstDataRows("2, 2, 104")
                     .dbFieldNames("one, two, three; np, name, normativ, eco_class, code_np; prod, station, station_code")
-                    .dataColumns("4-6, 8-10")
-                    .lastDataRows("938")
+                    .dataColumns("4-6, 8-11")
+                    .lastDataRows("3, 3")
                     .build();
             System.out.println("propertyParser:\n" + propertyParser);
 
@@ -48,10 +48,10 @@ public class ExcelParserApplication {
 //                    .logger(getLogger())
                     .build();
 
-            QueryPropertyHolder holder = queryPropertyHolders.get(1);
-            databaseWriter.write(holder);
+//            QueryPropertyHolder holder = queryPropertyHolders.get(0);
+//            databaseWriter.write(holder);
 
-//            databaseWriter.write(queryPropertyHolders);
+            databaseWriter.write(queryPropertyHolders);
         } catch (IOException e) {
             e.printStackTrace();
         }

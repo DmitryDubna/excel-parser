@@ -66,13 +66,15 @@ public class ExcelBookReader {
             return result;
 
         for (int i = indexFrom; i <= indexTo; i++) {
-            Cell cell = headerRow.getCell(i);
-            int column = cell.getAddress().getColumn();
+            Cell headerCell = headerRow.getCell(i);
+            int column = headerCell.getAddress().getColumn();
             String fieldName = TRANSLITERATOR
-                    .transliterate(cell.getStringCellValue())
+                    .transliterate(headerCell.getStringCellValue())
                     .strip()
                     .replaceAll("\\W+", "_");
-            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            Cell dataCell = sheet.getRow(dataRowIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            String fieldType = toPostgresType(dataCell);
+
             result.put(fieldName, fieldType);
         };
         return result;
@@ -108,7 +110,9 @@ public class ExcelBookReader {
             String fieldName = fieldNames.get(i)
                     .strip()
                     .replaceAll("\\W+", "_");
-            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(i + indexFrom, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            Cell dataCell = sheet.getRow(dataRowIndex).getCell(i + indexFrom, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            String fieldType = toPostgresType(dataCell);
+
             result.put(fieldName, fieldType);
         }
         return result;
@@ -127,12 +131,6 @@ public class ExcelBookReader {
             }
         }
     }
-
-//    public String toPostgresTableValues(Sheet sheet,
-//                                        List<String> fieldTypes,
-//                                        int rowFrom) {
-//        return toPostgresTableValues(sheet, fieldTypes, rowFrom, Optional.empty(), Optional.empty(), Optional.empty());
-//    }
 
     public String toPostgresTableValues(Sheet sheet,
                                         List<String> fieldTypes,
