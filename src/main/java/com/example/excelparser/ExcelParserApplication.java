@@ -29,8 +29,7 @@ public class ExcelParserApplication {
             var propertyParser = ExcelProcessorPropertyParser.builder()
                     .sheetNames(SHEET_NAMES_STRING.isBlank() ? bookReader.getFirstSheetName().orElse("") : SHEET_NAMES_STRING)
                     .dbTableNames("Base, Dict")
-//                    .firstDataRows("")
-                    .firstDataRows("2, 315, 104")
+                    .firstDataRows("2, 3, 104")
 //                    .dbColumnNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
                     .dataColumns("1-6, 8-10")
 //                    .lastDataRows("938, 316")
@@ -47,11 +46,11 @@ public class ExcelParserApplication {
                     .overwrite(true)
 //                    .logger(getLogger())
                     .build();
+//
+//            QueryPropertyHolder holder = queryPropertyHolders.get(1);
+//            databaseWriter.write(holder);
 
-            QueryPropertyHolder holder = queryPropertyHolders.get(1);
-            databaseWriter.write(holder);
-
-//            databaseWriter.write(queryPropertyHolders);
+            databaseWriter.write(queryPropertyHolders);
         } catch (IOException e) {
             e.printStackTrace();
         }

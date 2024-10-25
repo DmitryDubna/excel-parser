@@ -40,39 +40,32 @@ public class ExcelBookReader {
 
     /// Формирует коллекцию типов данных по индексу строки заголовка
     public Map<String, String> getPostgresTypesByHeaderIndex(Sheet sheet,
-                                                             int dataRow,
-                                                             int headerRow) {
-        if (!checkRowIndexValid(sheet, dataRow) || ! checkRowIndexValid(sheet, headerRow))
-            return Map.of();
-
-        Row row = sheet.getRow(headerRow);
-        return getPostgresTypesByHeaderIndex(sheet, dataRow, headerRow, row.getFirstCellNum(), row.getLastCellNum());
-    }
-
-
-    public Map<String, String> getPostgresTypesByHeaderIndex(Sheet sheet,
-                                                             int dataRow,
-                                                             int headerRow,
-                                                             int columnFrom,
-                                                             int columnTo) {
+                                                             int dataRowIndex,
+                                                             int headerRowIndex,
+                                                             Optional<Integer> columnFromIndex,
+                                                             Optional<Integer> columnToIndex) {
         var result = new LinkedHashMap<String, String>();
 
-        if (!checkRowIndexValid(sheet, dataRow) || ! checkRowIndexValid(sheet, headerRow))
-            return Map.of();
+        if (!checkRowIndexValid(sheet, dataRowIndex) || ! checkRowIndexValid(sheet, headerRowIndex))
+            return result;
 
+        Row headerRow = sheet.getRow(headerRowIndex);
 
-        Row row = sheet.getRow(headerRow);
-        int indexFrom = (columnFrom >= row.getFirstCellNum()) ? columnFrom : row.getFirstCellNum();
-        int indexTo = (columnTo < row.getLastCellNum()) ? columnTo : row.getLastCellNum() - 1;
+        int indexFrom = columnFromIndex
+                .map(value -> (value >= headerRow.getFirstCellNum()) ? value : headerRow.getFirstCellNum())
+                .orElseGet(() -> Integer.valueOf(headerRow.getFirstCellNum()));
+        int indexTo = columnToIndex
+                .map(value -> (value < headerRow.getLastCellNum()) ? value : headerRow.getLastCellNum() - 1)
+                .orElseGet(() -> Integer.valueOf(headerRow.getLastCellNum() - 1));
 
         for (int i = indexFrom; i <= indexTo; i++) {
-            Cell cell = row.getCell(i);
+            Cell cell = headerRow.getCell(i);
             int column = cell.getAddress().getColumn();
             String fieldName = TRANSLITERATOR
                     .transliterate(cell.getStringCellValue())
                     .strip()
                     .replaceAll("\\W+", "_");
-            String fieldType = toPostgresType(sheet.getRow(dataRow).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
         };
         return result;
@@ -80,26 +73,26 @@ public class ExcelBookReader {
 
     /// Формирует коллекцию типов данных по списку имен колонок
     public Map<String, String> getPostgresTypesByFieldNames(Sheet sheet,
-                                                            int dataRow,
+                                                            int dataRowIndex,
                                                             List<String> fieldNames) {
-        return getPostgresTypesByFieldNames(sheet, dataRow, fieldNames, 0, fieldNames.size() - 1);
+        return getPostgresTypesByFieldNames(sheet, dataRowIndex, fieldNames, 0, fieldNames.size() - 1);
     }
 
     public Map<String, String> getPostgresTypesByFieldNames(Sheet sheet,
-                                                            int dataRow,
+                                                            int dataRowIndex,
                                                             List<String> fieldNames,
-                                                            int columnFrom,
-                                                            int columnTo) {
+                                                            int columnFromIndex,
+                                                            int columnToIndex) {
         var result = new LinkedHashMap<String, String>();
 
-        int indexFrom = (columnFrom >= 0) ? columnFrom : 0;
-        int indexTo = (columnTo < fieldNames.size()) ? columnTo : fieldNames.size() - 1;
+        int indexFrom = (columnFromIndex >= 0) ? columnFromIndex : 0;
+        int indexTo = (columnToIndex < fieldNames.size()) ? columnToIndex : fieldNames.size() - 1;
 
         for (int i = indexFrom; i <= indexTo; i++) {
             String fieldName = fieldNames.get(i)
                     .strip()
                     .replaceAll("\\W+", "_");;
-            String fieldType = toPostgresType(sheet.getRow(dataRow).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
         }
         return result;
@@ -123,28 +116,26 @@ public class ExcelBookReader {
                                         List<String> fieldTypes,
                                         int rowFrom) {
         return toPostgresTableValues(sheet, fieldTypes, rowFrom, Optional.empty(), Optional.empty(), Optional.empty());
-//                sheet.getLastRowNum(), 0, fieldTypes.size() - 1);
     }
 
     public String toPostgresTableValues(Sheet sheet,
                                         List<String> fieldTypes,
-                                        int rowFrom,
-                                        Optional<Integer> rowTo,
-                                        Optional<Integer> columnFrom,
-                                        Optional<Integer> columnTo) {
+                                        int rowFromIndex,
+                                        Optional<Integer> rowToIndex,
+                                        Optional<Integer> columnFromIndex,
+                                        Optional<Integer> columnToIndex) {
         var result = new ArrayList<String>();
 
-        int rowToValue = rowTo.orElseGet(() -> sheet.getLastRowNum());
+        int rowToValue = rowToIndex.orElseGet(() -> sheet.getLastRowNum());
 
-        int rowFromIndex = (rowFrom >= sheet.getFirstRowNum()) ? rowFrom : sheet.getFirstRowNum();
-        int rowToIndex = (rowToValue <= sheet.getLastRowNum()) ? rowToValue : sheet.getLastRowNum();
-//        int rowToIndex = (rowTo <= sheet.getLastRowNum()) ? rowTo : sheet.getLastRowNum();
+        int rowNumFrom = (rowFromIndex >= sheet.getFirstRowNum()) ? rowFromIndex : sheet.getFirstRowNum();
+        int rowNumTo = (rowToValue <= sheet.getLastRowNum()) ? rowToValue : sheet.getLastRowNum();
 
-        int columnFromIndex = columnFrom.orElse(0);
-        int columnToIndex = columnTo.orElseGet(() -> fieldTypes.size() - 1);
+        int columnNumFrom = columnFromIndex.orElse(0);
+        int columnNumTo = columnToIndex.orElseGet(() -> fieldTypes.size() - 1);
 
-        for (int i = rowFromIndex; i <= rowToIndex; i++) {
-            String rowValues = toPostgresRowValues(sheet.getRow(i), fieldTypes, columnFromIndex, columnToIndex);
+        for (int i = rowNumFrom; i <= rowNumTo; i++) {
+            String rowValues = toPostgresRowValues(sheet.getRow(i), fieldTypes, columnNumFrom, columnNumTo);
             result.add(rowValues);
         }
         return String.join(", ", result);
@@ -152,13 +143,13 @@ public class ExcelBookReader {
 
     private String toPostgresRowValues(Row row,
                                        List<String> fieldTypes,
-                                       int columnFrom,
-                                       int columnTo) {
+                                       int columnFromIndex,
+                                       int columnToIndex) {
         var values = new ArrayList<String>();
 
         for (int i = 0; i < fieldTypes.size(); i++) {
-            int columnIndex = columnFrom + i;
-            if (columnIndex > columnTo)
+            int columnIndex = columnFromIndex + i;
+            if (columnIndex > columnToIndex)
                 break;
 
             Cell cell = row.getCell(columnIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);

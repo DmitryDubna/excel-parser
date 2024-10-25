@@ -62,9 +62,7 @@ public class DatabaseWriter {
             truncateTable(connection, schemeName, tableName);
 
         // имена полей
-        String fieldNames = toFieldNames(postgresTypes, holder);
-//        // типы полей
-//        List<String> fieldTypes = toFieldTypes(postgresTypes);
+        String fieldNames = toFieldNames(postgresTypes);
         // значения полей
         String fieldValues = toFieldValues(sheet, postgresTypes, holder);
         // заполнение таблицы
@@ -73,7 +71,7 @@ public class DatabaseWriter {
 
     private String toFieldValues(Sheet sheet, Map<String, String> postgresTypes, QueryPropertyHolder holder) {
         // типы полей
-        List<String> fieldTypes = toFieldTypes(postgresTypes, holder);
+        List<String> fieldTypes = toFieldTypes(postgresTypes);
         // значения полей
         if (holder.getDataColumnInfo().isEmpty())
             return bookReader.toPostgresTableValues(sheet, fieldTypes, holder.getFirstDataRow());
@@ -90,9 +88,18 @@ public class DatabaseWriter {
     }
 
     private Map<String, String> getPostgresTypes(Sheet sheet, QueryPropertyHolder holder) {
+        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
+
+        Optional<Integer> columnFrom = Objects.nonNull(columnInfo)
+                ? Optional.of(columnInfo.getFrom())
+                : Optional.empty();
+        Optional<Integer> columnTo = Objects.nonNull(columnInfo)
+                ? Optional.of(columnInfo.getTo())
+                : Optional.empty();
+
         return holder.getDbFieldNames().isEmpty()
                 // имена и типы данных для postgres (по строке заголовка)
-                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), 0)
+                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), 0, columnFrom, columnTo)
                 // имена и типы данных для postgres (по списку имен полей)
                 : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames());
     }
@@ -104,32 +111,16 @@ public class DatabaseWriter {
                 .collect(Collectors.joining(", "));
     }
 
-    private String toFieldNames(Map<String, String> postgresTypes, QueryPropertyHolder holder) {
-        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
-
+    private String toFieldNames(Map<String, String> postgresTypes) {
         return postgresTypes.entrySet()
                 .stream()
-                .skip(Objects.nonNull(columnInfo)
-                        ? columnInfo.getFrom()
-                        : 0)
-                .limit(Objects.nonNull(columnInfo)
-                        ? columnInfo.getTo() - columnInfo.getFrom() + 1
-                        : postgresTypes.size())
                 .map(Map.Entry::getKey)
                 .collect(Collectors.joining(", "));
     }
 
-    private List<String> toFieldTypes(Map<String, String> postgresTypes, QueryPropertyHolder holder) {
-        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
-
+    private List<String> toFieldTypes(Map<String, String> postgresTypes/*, QueryPropertyHolder holder*/) {
         return postgresTypes.entrySet()
                 .stream()
-                .skip(Objects.nonNull(columnInfo)
-                        ? columnInfo.getFrom()
-                        : 0)
-                .limit(Objects.nonNull(columnInfo)
-                        ? columnInfo.getTo() - columnInfo.getFrom() + 1
-                        : postgresTypes.size())
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
     }

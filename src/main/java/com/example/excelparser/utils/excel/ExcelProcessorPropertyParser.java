@@ -33,25 +33,6 @@ public class ExcelProcessorPropertyParser {
         return new ExcelProcessorPropertyParserBuilder();
     }
 
-//    public List<QueryPropertyHolder> buildQueryPropertyHolders() {
-//        var result = new ArrayList<QueryPropertyHolder>();
-//        for (int i = 0; i < sheetNames.size(); i++) {
-//            String sheetName = sheetNames.get(i);
-//            QueryPropertyHolder propertyHolder = QueryPropertyHolder.builder()
-//                    .sheetName(sheetName)
-//                    .dbTableName(
-//                            (dbTableNames.size() > i)
-//                                    ? dbTableNames.get(i)
-//                                    : TRANSLITERATOR.transliterate(sheetName).strip().replaceAll("\\W+", "_")
-//                    )
-//                    .firstDataRow((firstDataRows.size() > i) ? firstDataRows.get(i) : DEFAULT_FIRST_DATA_ROW)
-//                    .dbFieldNames((dbFieldNames.size() > i) ? dbFieldNames.get(i) : List.of())
-//                    .build();
-//            result.add(propertyHolder);
-//        }
-//        return result;
-//    }
-
     public List<QueryPropertyHolder> buildQueryPropertyHolders(ParseMode mode) {
         return (ParseMode.ONE_TABLE_PER_SHEET == mode)
                 ? parseOneTablePerSheetData()
