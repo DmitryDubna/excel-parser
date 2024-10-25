@@ -1,29 +1,32 @@
 package com.example.excelparser.utils.excel;
 
-import jakarta.validation.constraints.NotNull;
-import lombok.Builder;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import lombok.NonNull;
 import org.apache.nifi.logging.ComponentLog;
 import org.apache.poi.ss.usermodel.Sheet;
 
 import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-@Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class DatabaseWriter {
-    @NotNull
+//    @NonNull
     private Connection connection;
-    @NotNull
+    @NonNull
     private ExcelBookReader bookReader;
-    @Builder.Default
-    private String schemeName = "public";
-    @Builder.Default
-    private boolean overwrite = false;
+    private String schemeName;
+    private boolean overwrite;
     private ComponentLog logger;
+
+
+    public static DatabaseWriterBuilder builder() {
+        return new DatabaseWriterBuilder();
+    }
 
     void logError(String msg) {
         if (Objects.nonNull(logger))
@@ -63,11 +66,11 @@ public class DatabaseWriter {
     }
 
     private Map<String, String> getPostgresTypes(Sheet sheet, QueryPropertyHolder holder) {
-        return holder.getDbColumnNames().isEmpty()
-                // имена и типы данных для postgres (по строке данных)
-                ? bookReader.getPostgresTypes(sheet, holder.getFirstDataRow(), 0)
-                // имена и типы данных для postgres (по списку имен столбцов)
-                : bookReader.getPostgresTypes(sheet, holder.getFirstDataRow(), holder.getDbColumnNames());
+        return holder.getDbFieldNames().isEmpty()
+                // имена и типы данных для postgres (по строке заголовка)
+                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), holder.getHeaderRow())
+                // имена и типы данных для postgres (по списку имен полей)
+                : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames());
     }
 
     private String toFieldsDefinition(Map<String, String> postgresTypes) {
@@ -166,5 +169,47 @@ public class DatabaseWriter {
 //            return false;
 //        }
         return true;
+    }
+
+    @NoArgsConstructor(access = AccessLevel.PRIVATE)
+    public static class DatabaseWriterBuilder {
+//        @NonNull
+        private Connection connection;
+        @NonNull
+        private ExcelBookReader bookReader;
+        private String schemeName = "public";
+        private boolean overwrite = true;
+        private ComponentLog logger;
+
+        public DatabaseWriterBuilder connection(/*@NonNull*/ Connection connection) {
+            this.connection = connection;
+            return this;
+        }
+
+        public DatabaseWriterBuilder bookReader(@NonNull ExcelBookReader bookReader) {
+            this.bookReader = bookReader;
+            return this;
+        }
+
+        public DatabaseWriterBuilder schemeName(String schemeName) {
+            if (!schemeName.isBlank())
+                this.schemeName = schemeName;
+
+            return this;
+        }
+
+        public DatabaseWriterBuilder overwrite(boolean overwrite) {
+            this.overwrite = overwrite;
+            return this;
+        }
+
+        public DatabaseWriterBuilder logger(ComponentLog logger) {
+            this.logger = logger;
+            return this;
+        }
+
+        public DatabaseWriter build() {
+            return new DatabaseWriter(connection, bookReader, schemeName, overwrite, logger);
+        }
     }
 }

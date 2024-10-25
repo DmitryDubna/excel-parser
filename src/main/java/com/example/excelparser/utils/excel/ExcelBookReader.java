@@ -27,31 +27,93 @@ public class ExcelBookReader {
         formulaEvaluator = workbook.getCreationHelper().createFormulaEvaluator();
     }
 
+    public Optional<String> getFirstSheetName() {
+        return (workbook.getNumberOfSheets() > 0)
+                ? Optional.of(workbook.getSheetAt(0).getSheetName())
+                : Optional.empty();
+    }
+
     /// Формирует коллекцию типов данных по индексу строки заголовка
-    public Map<String, String> getPostgresTypes(Sheet sheet, int dataIndex, int headerIndex) {
+//    public Map<String, String> getPostgresTypes(Sheet sheet, int dataIndex, int headerIndex) {
+//        var result = new LinkedHashMap<String, String>();
+//
+//        sheet.getRow(headerIndex).forEach(cell -> {
+//            int column = cell.getAddress().getColumn();
+//            String fieldName = TRANSLITERATOR
+//                    .transliterate(cell.getStringCellValue())
+//                    .strip()
+//                    .replaceAll("\\W+", "_");
+//            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+//            result.put(fieldName, fieldType);
+//        });
+//        return result;
+//    }
+
+    public Map<String, String> getPostgresTypesByHeaderIndex(Sheet sheet, int dataRowIndex, int headerIndex) {
+        Row row = sheet.getRow(headerIndex);
+        return getPostgresTypesByHeaderIndex(sheet, dataRowIndex, headerIndex, row.getFirstCellNum(), row.getLastCellNum());
+    }
+
+
+    public Map<String, String> getPostgresTypesByHeaderIndex(
+            Sheet sheet,
+            int dataRowIndex,
+            int headerIndex,
+            int fromColumnIndex,
+            int toColumnIndex) {
         var result = new LinkedHashMap<String, String>();
 
-        sheet.getRow(headerIndex).forEach(cell -> {
+        Row row = sheet.getRow(headerIndex);
+        int fromIndex = (fromColumnIndex >= row.getFirstCellNum()) ? fromColumnIndex : row.getFirstCellNum();
+        int toIndex = (toColumnIndex < row.getLastCellNum()) ? toColumnIndex : row.getLastCellNum() - 1;
+
+        for (int i = fromIndex; i <= toIndex; i++) {
+            Cell cell = row.getCell(i);
             int column = cell.getAddress().getColumn();
             String fieldName = TRANSLITERATOR
                     .transliterate(cell.getStringCellValue())
                     .strip()
                     .replaceAll("\\W+", "_");
-            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(column, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
-        });
+        };
         return result;
     }
 
     /// Формирует коллекцию типов данных по списку имен колонок
-    public Map<String, String> getPostgresTypes(Sheet sheet, int dataIndex, List<String> headerNames) {
+//    public Map<String, String> getPostgresTypes(Sheet sheet, int dataIndex, List<String> headerNames) {
+//        var result = new LinkedHashMap<String, String>();
+//
+//        for (int i = 0; i < headerNames.size(); i++) {
+//            String fieldName = headerNames.get(i)
+//                    .strip()
+//                    .replaceAll("\\W+", "_");;
+//            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+//            result.put(fieldName, fieldType);
+//        }
+//        return result;
+//    }
+
+    public Map<String, String> getPostgresTypesByFieldNames(Sheet sheet, int dataRowIndex, List<String> fieldNames) {
+        return getPostgresTypesByFieldNames(sheet, dataRowIndex, fieldNames, 0, fieldNames.size() - 1);
+    }
+
+    public Map<String, String> getPostgresTypesByFieldNames(
+            Sheet sheet,
+            int dataRowIndex,
+            List<String> fieldNames,
+            int fromColumnIndex,
+            int toColumnIndex) {
         var result = new LinkedHashMap<String, String>();
 
-        for (int i = 0; i < headerNames.size(); i++) {
-            String fieldName = headerNames.get(i)
+        int fromIndex = (fromColumnIndex >= 0) ? fromColumnIndex : 0;
+        int toIndex = (toColumnIndex < fieldNames.size()) ? toColumnIndex : fieldNames.size() - 1;
+
+        for (int i = fromIndex; i <= toIndex; i++) {
+            String fieldName = fieldNames.get(i)
                     .strip()
                     .replaceAll("\\W+", "_");;
-            String fieldType = toPostgresType(sheet.getRow(dataIndex).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
         }
         return result;

@@ -18,27 +18,32 @@ public class ExcelParserApplication {
 
 //    private static final String COLUMN_NAMES_STRING = "code, name, basis; np, name, normativ, eco_class, code_np; prod, station, station_code";
     private static final List<String> HEADER_NAMES = List.of("code", "name", "basis");
+    private static final ExcelProcessorPropertyParser.ParseMode PARSE_MODE = ExcelProcessorPropertyParser.ParseMode.ALL_TABLES_PER_SHEET;
+    private static String SHEET_NAMES_STRING = "";
 
     public static void main(String[] args) {
         try (FileInputStream inputStream = new FileInputStream(new File("/home/dmitry/Загрузки/analize_data_2.xlsx"))) {
 
+            ExcelBookReader bookReader = new ExcelBookReader(inputStream);
+
             var propertyParser = ExcelProcessorPropertyParser.builder()
-                    .sheetNames("База")
-//                    .dbTableNames("Base")
-//                    .firstDataRows("2, 315, 104")
+                    .sheetNames(SHEET_NAMES_STRING.isBlank() ? bookReader.getFirstSheetName().orElse("") : SHEET_NAMES_STRING)
+                    .dbTableNames("Base, Dict")
+                    .firstDataRows("")
+                    .firstDataRows("2, 315, 104")
 //                    .dbColumnNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
+                    .dataColumns("1-6, 8-10")
+                    .lastDataRows("938, 316")
                     .build();
             System.out.println("propertyParser:\n" + propertyParser);
 
-            List<QueryPropertyHolder> queryPropertyHolders = propertyParser.buildQueryPropertyHolders();
+            List<QueryPropertyHolder> queryPropertyHolders = propertyParser.buildQueryPropertyHolders(PARSE_MODE);
             System.out.println("queryPropertyHolders:\n" + queryPropertyHolders);
-
-            ExcelBookReader bookReader = new ExcelBookReader(inputStream);
 
             DatabaseWriter databaseWriter = DatabaseWriter.builder()
 //                    .connection(connection)
                     .bookReader(bookReader)
-//                    .schemeName("data_mart")
+//                    .schemeName("")
                     .overwrite(true)
 //                    .logger(getLogger())
                     .build();
