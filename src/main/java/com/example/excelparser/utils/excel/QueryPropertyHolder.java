@@ -17,19 +17,20 @@ public class QueryPropertyHolder {
     @Builder.Default
     private Optional<DataColumnInfo> dataColumnInfo = Optional.empty();
     @Builder.Default
-    private Optional<Integer> lastDataRows = Optional.empty();
+    private Optional<Integer> lastDataRow = Optional.empty();
 
+    @Value
     @ToString
     @AllArgsConstructor(access = AccessLevel.PRIVATE)
     public static class DataColumnInfo {
         private int from;
         private int to;
 
-        public static DataColumnInfo parse(String s) {
+        public static DataColumnInfo parse(String rangeString) {
             try {
-                List<Integer> values = StringUtils.toStringList(s, "-")
+                List<Integer> values = StringUtils.toStringList(rangeString, "-")
                         .stream()
-                        .map(Integer::valueOf)
+                        .map(s -> Integer.valueOf(s) - 1)
                         .collect(Collectors.toList());
                 return (values.size() < 2)
                         ? null
@@ -39,9 +40,5 @@ public class QueryPropertyHolder {
                 return null;
             }
         }
-    }
-
-    public int getHeaderRow() {
-        return (this.firstDataRow > 0) ? this.firstDataRow - 1 : 0;
     }
 }

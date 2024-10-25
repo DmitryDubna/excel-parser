@@ -93,7 +93,7 @@ public class ExcelProcessorPropertyParser {
                     .firstDataRow((firstDataRows.size() > i) ? firstDataRows.get(i) : DEFAULT_FIRST_DATA_ROW)
                     .dbFieldNames((dbFieldNames.size() > i) ? dbFieldNames.get(i) : List.of())
                     .dataColumnInfo((dataColumns.size() > i) ? Optional.of(dataColumns.get(i)) : Optional.empty())
-                    .lastDataRows((lastDataRows.size() > i) ? Optional.of(lastDataRows.get(i)) : Optional.empty())
+                    .lastDataRow((lastDataRows.size() > i) ? Optional.of(lastDataRows.get(i)) : Optional.empty())
                     .build();
             result.add(propertyHolder);
         }

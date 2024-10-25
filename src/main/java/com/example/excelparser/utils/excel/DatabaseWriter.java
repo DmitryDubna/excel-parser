@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -43,6 +44,11 @@ public class DatabaseWriter {
         // получение типов данных таблицы БД
         Map<String, String> postgresTypes = getPostgresTypes(sheet, holder);
 
+        if (postgresTypes.isEmpty()) {
+            logError("Не удалось сформировать список типов данных.");
+            return;
+        }
+
         // проверка сущестовования таблицы БД
         final boolean exists = checkIfTableExists(connection, schemeName, tableName);
         if (!exists) {
@@ -56,19 +62,37 @@ public class DatabaseWriter {
             truncateTable(connection, schemeName, tableName);
 
         // имена полей
-        String fieldNames = toFieldNames(postgresTypes);
-        // типы полей
-        List<String> fieldTypes = toFieldTypes(postgresTypes);
+        String fieldNames = toFieldNames(postgresTypes, holder);
+//        // типы полей
+//        List<String> fieldTypes = toFieldTypes(postgresTypes);
         // значения полей
-        String fieldValues = bookReader.toPostgresTableValues(sheet, fieldTypes, holder.getFirstDataRow());
+        String fieldValues = toFieldValues(sheet, postgresTypes, holder);
         // заполнение таблицы
         insertData(connection, schemeName, tableName, fieldNames, fieldValues);
+    }
+
+    private String toFieldValues(Sheet sheet, Map<String, String> postgresTypes, QueryPropertyHolder holder) {
+        // типы полей
+        List<String> fieldTypes = toFieldTypes(postgresTypes, holder);
+        // значения полей
+        if (holder.getDataColumnInfo().isEmpty())
+            return bookReader.toPostgresTableValues(sheet, fieldTypes, holder.getFirstDataRow());
+
+        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().get();
+        return bookReader.toPostgresTableValues(
+                sheet,
+                fieldTypes,
+                holder.getFirstDataRow(),
+                holder.getLastDataRow(),
+                // FIXME
+                Optional.of(columnInfo.getFrom()),
+                Optional.of(columnInfo.getTo()));
     }
 
     private Map<String, String> getPostgresTypes(Sheet sheet, QueryPropertyHolder holder) {
         return holder.getDbFieldNames().isEmpty()
                 // имена и типы данных для postgres (по строке заголовка)
-                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), holder.getHeaderRow())
+                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), 0)
                 // имена и типы данных для postgres (по списку имен полей)
                 : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames());
     }
@@ -80,16 +104,32 @@ public class DatabaseWriter {
                 .collect(Collectors.joining(", "));
     }
 
-    private String toFieldNames(Map<String, String> postgresTypes) {
+    private String toFieldNames(Map<String, String> postgresTypes, QueryPropertyHolder holder) {
+        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
+
         return postgresTypes.entrySet()
                 .stream()
+                .skip(Objects.nonNull(columnInfo)
+                        ? columnInfo.getFrom()
+                        : 0)
+                .limit(Objects.nonNull(columnInfo)
+                        ? columnInfo.getTo() - columnInfo.getFrom() + 1
+                        : postgresTypes.size())
                 .map(Map.Entry::getKey)
                 .collect(Collectors.joining(", "));
     }
 
-    private List<String> toFieldTypes(Map<String, String> postgresTypes) {
+    private List<String> toFieldTypes(Map<String, String> postgresTypes, QueryPropertyHolder holder) {
+        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
+
         return postgresTypes.entrySet()
                 .stream()
+                .skip(Objects.nonNull(columnInfo)
+                        ? columnInfo.getFrom()
+                        : 0)
+                .limit(Objects.nonNull(columnInfo)
+                        ? columnInfo.getTo() - columnInfo.getFrom() + 1
+                        : postgresTypes.size())
                 .map(Map.Entry::getValue)
                 .collect(Collectors.toList());
     }
