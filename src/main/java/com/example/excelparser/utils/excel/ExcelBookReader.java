@@ -34,11 +34,17 @@ public class ExcelBookReader {
                 : Optional.empty();
     }
 
+    // Проверяет, не выходит ли индекс строки за пределы данных листа
     private boolean checkRowIndexValid(Sheet sheet, int rowIndex) {
         return ValueRange.of(sheet.getFirstRowNum(), sheet.getLastRowNum()).isValidValue(rowIndex);
     }
 
-    /// Формирует коллекцию типов данных по индексу строки заголовка
+    // Проверяет, не выходит ли диапазон индексов колонок за пределы размера списка полей
+    private boolean checkColumnIndexesValid(int columnFromIndex, int columnToIndex, int fieldCount) {
+        return (columnToIndex - columnFromIndex + 1) <= fieldCount;
+    }
+
+    // Формирует коллекцию типов данных по индексу строки заголовка
     public Map<String, String> getPostgresTypesByHeaderIndex(Sheet sheet,
                                                              int dataRowIndex,
                                                              int headerRowIndex,
@@ -46,17 +52,18 @@ public class ExcelBookReader {
                                                              Optional<Integer> columnToIndex) {
         var result = new LinkedHashMap<String, String>();
 
+        // проверка индексов строк
         if (!checkRowIndexValid(sheet, dataRowIndex) || ! checkRowIndexValid(sheet, headerRowIndex))
             return result;
 
+        // если индексы колонок не заданы, берем диапазон ячеек строки заголовка
         Row headerRow = sheet.getRow(headerRowIndex);
+        int indexFrom = columnFromIndex.orElseGet(() -> Integer.valueOf(headerRow.getFirstCellNum()));
+        int indexTo = columnToIndex.orElseGet(() -> Integer.valueOf(headerRow.getLastCellNum() - 1));
 
-        int indexFrom = columnFromIndex
-                .map(value -> (value >= headerRow.getFirstCellNum()) ? value : headerRow.getFirstCellNum())
-                .orElseGet(() -> Integer.valueOf(headerRow.getFirstCellNum()));
-        int indexTo = columnToIndex
-                .map(value -> (value < headerRow.getLastCellNum()) ? value : headerRow.getLastCellNum() - 1)
-                .orElseGet(() -> Integer.valueOf(headerRow.getLastCellNum() - 1));
+        // проверка индексов колонок
+        if (!checkColumnIndexesValid(indexFrom, indexTo, headerRow.getPhysicalNumberOfCells()))
+            return result;
 
         for (int i = indexFrom; i <= indexTo; i++) {
             Cell cell = headerRow.getCell(i);
@@ -71,28 +78,32 @@ public class ExcelBookReader {
         return result;
     }
 
-    /// Формирует коллекцию типов данных по списку имен колонок
-    public Map<String, String> getPostgresTypesByFieldNames(Sheet sheet,
-                                                            int dataRowIndex,
-                                                            List<String> fieldNames) {
-        return getPostgresTypesByFieldNames(sheet, dataRowIndex, fieldNames, 0, fieldNames.size() - 1);
-    }
-
+    // Формирует коллекцию типов данных по списку имен колонок
     public Map<String, String> getPostgresTypesByFieldNames(Sheet sheet,
                                                             int dataRowIndex,
                                                             List<String> fieldNames,
-                                                            int columnFromIndex,
-                                                            int columnToIndex) {
+                                                            Optional<Integer> columnFromIndex,
+                                                            Optional<Integer> columnToIndex) {
         var result = new LinkedHashMap<String, String>();
 
-        int indexFrom = (columnFromIndex >= 0) ? columnFromIndex : 0;
-        int indexTo = (columnToIndex < fieldNames.size()) ? columnToIndex : fieldNames.size() - 1;
+        // проверка индексов строк
+        if (!checkRowIndexValid(sheet, dataRowIndex))
+            return result;
 
-        for (int i = indexFrom; i <= indexTo; i++) {
+        // если индексы колонок не заданы, берем диапазон списка имен полей
+        int indexFrom = columnFromIndex.orElse(0);
+        int indexTo = columnToIndex.orElseGet(() -> fieldNames.size() - 1);
+
+        // проверка индексов колонок
+        if (!checkColumnIndexesValid(indexFrom, indexTo, fieldNames.size()))
+            return result;
+
+        for (int i = 0; i < fieldNames.size(); i++) {
             String fieldName = fieldNames.get(i)
                     .strip()
-                    .replaceAll("\\W+", "_");;
-            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(i, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
+                    .replaceAll("\\W+", "_");
+            // берем значение ячейки, смщенное на indexFrom относительно начальной колонки
+            String fieldType = toPostgresType(sheet.getRow(dataRowIndex).getCell(i + indexFrom, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK));
             result.put(fieldName, fieldType);
         }
         return result;
@@ -112,11 +123,11 @@ public class ExcelBookReader {
         }
     }
 
-    public String toPostgresTableValues(Sheet sheet,
-                                        List<String> fieldTypes,
-                                        int rowFrom) {
-        return toPostgresTableValues(sheet, fieldTypes, rowFrom, Optional.empty(), Optional.empty(), Optional.empty());
-    }
+//    public String toPostgresTableValues(Sheet sheet,
+//                                        List<String> fieldTypes,
+//                                        int rowFrom) {
+//        return toPostgresTableValues(sheet, fieldTypes, rowFrom, Optional.empty(), Optional.empty(), Optional.empty());
+//    }
 
     public String toPostgresTableValues(Sheet sheet,
                                         List<String> fieldTypes,
@@ -126,15 +137,22 @@ public class ExcelBookReader {
                                         Optional<Integer> columnToIndex) {
         var result = new ArrayList<String>();
 
-        int rowToValue = rowToIndex.orElseGet(() -> sheet.getLastRowNum());
+        // если индекс конечной строки не задан, берем индекс последней строки данных
+        int rowToIndexValue = rowToIndex.orElseGet(() -> sheet.getLastRowNum());
 
-        int rowNumFrom = (rowFromIndex >= sheet.getFirstRowNum()) ? rowFromIndex : sheet.getFirstRowNum();
-        int rowNumTo = (rowToValue <= sheet.getLastRowNum()) ? rowToValue : sheet.getLastRowNum();
+        // проверка индексов строк
+        if (!checkRowIndexValid(sheet, rowFromIndex) || ! checkRowIndexValid(sheet, rowToIndexValue))
+            return "";
 
+        // если индексы колонок не заданы, берем диапазон списка имен полей
         int columnNumFrom = columnFromIndex.orElse(0);
         int columnNumTo = columnToIndex.orElseGet(() -> fieldTypes.size() - 1);
 
-        for (int i = rowNumFrom; i <= rowNumTo; i++) {
+        // проверка индексов колонок
+        if (!checkColumnIndexesValid(columnNumFrom, columnNumTo, fieldTypes.size()))
+            return "";
+
+        for (int i = rowFromIndex; i <= rowToIndexValue; i++) {
             String rowValues = toPostgresRowValues(sheet.getRow(i), fieldTypes, columnNumFrom, columnNumTo);
             result.add(rowValues);
         }
@@ -148,11 +166,13 @@ public class ExcelBookReader {
         var values = new ArrayList<String>();
 
         for (int i = 0; i < fieldTypes.size(); i++) {
-            int columnIndex = columnFromIndex + i;
-            if (columnIndex > columnToIndex)
+            // берем значение ячейки, смщенное на columnFromIndex относительно начальной колонки
+            int cellIndex = columnFromIndex + i;
+            // формируем данные до columnToIndex
+            if (cellIndex > columnToIndex)
                 break;
 
-            Cell cell = row.getCell(columnIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            Cell cell = row.getCell(cellIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
             values.add(Objects.isNull(cell) ? "null" : toPostgresString(cell, fieldTypes.get(i)));
         }
         return values.stream().collect(Collectors.joining(", ", "(", ")"));

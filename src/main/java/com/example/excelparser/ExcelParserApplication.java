@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 @SpringBootApplication
 public class ExcelParserApplication {
@@ -29,10 +30,10 @@ public class ExcelParserApplication {
             var propertyParser = ExcelProcessorPropertyParser.builder()
                     .sheetNames(SHEET_NAMES_STRING.isBlank() ? bookReader.getFirstSheetName().orElse("") : SHEET_NAMES_STRING)
                     .dbTableNames("Base, Dict")
-                    .firstDataRows("2, 3, 104")
-//                    .dbColumnNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
-                    .dataColumns("1-6, 8-10")
-//                    .lastDataRows("938, 316")
+                    .firstDataRows("2, 2, 104")
+                    .dbFieldNames("one, two, three; np, name, normativ, eco_class, code_np; prod, station, station_code")
+                    .dataColumns("4-6, 8-10")
+                    .lastDataRows("938")
                     .build();
             System.out.println("propertyParser:\n" + propertyParser);
 
@@ -46,11 +47,11 @@ public class ExcelParserApplication {
                     .overwrite(true)
 //                    .logger(getLogger())
                     .build();
-//
-//            QueryPropertyHolder holder = queryPropertyHolders.get(1);
-//            databaseWriter.write(holder);
 
-            databaseWriter.write(queryPropertyHolders);
+            QueryPropertyHolder holder = queryPropertyHolders.get(1);
+            databaseWriter.write(holder);
+
+//            databaseWriter.write(queryPropertyHolders);
         } catch (IOException e) {
             e.printStackTrace();
         }

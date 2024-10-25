@@ -30,8 +30,9 @@ public class DatabaseWriter {
     }
 
     void logError(String msg) {
-        if (Objects.nonNull(logger))
-            logger.error(msg);
+        System.out.println(msg);
+//        if (Objects.nonNull(logger))
+//            logger.error(msg);
     }
 
     public void write(List<QueryPropertyHolder> queryPropertyHolders) {
@@ -65,6 +66,10 @@ public class DatabaseWriter {
         String fieldNames = toFieldNames(postgresTypes);
         // значения полей
         String fieldValues = toFieldValues(sheet, postgresTypes, holder);
+        if (fieldValues.isBlank()) {
+            logError("Не удалось сформировать список значений полей данных.");
+            return;
+        }
         // заполнение таблицы
         insertData(connection, schemeName, tableName, fieldNames, fieldValues);
     }
@@ -73,18 +78,15 @@ public class DatabaseWriter {
         // типы полей
         List<String> fieldTypes = toFieldTypes(postgresTypes);
         // значения полей
-        if (holder.getDataColumnInfo().isEmpty())
-            return bookReader.toPostgresTableValues(sheet, fieldTypes, holder.getFirstDataRow());
-
-        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().get();
+        QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
         return bookReader.toPostgresTableValues(
                 sheet,
                 fieldTypes,
                 holder.getFirstDataRow(),
                 holder.getLastDataRow(),
-                // FIXME
-                Optional.of(columnInfo.getFrom()),
-                Optional.of(columnInfo.getTo()));
+                Objects.nonNull(columnInfo) ? Optional.of(columnInfo.getFrom()) : Optional.empty(),
+                Objects.nonNull(columnInfo) ? Optional.of(columnInfo.getTo()) : Optional.empty()
+        );
     }
 
     private Map<String, String> getPostgresTypes(Sheet sheet, QueryPropertyHolder holder) {
@@ -101,7 +103,7 @@ public class DatabaseWriter {
                 // имена и типы данных для postgres (по строке заголовка)
                 ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), 0, columnFrom, columnTo)
                 // имена и типы данных для postgres (по списку имен полей)
-                : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames());
+                : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames(), columnFrom, columnTo);
     }
 
     private String toFieldsDefinition(Map<String, String> postgresTypes) {
