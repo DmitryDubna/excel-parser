@@ -19,7 +19,7 @@ public class ExcelBookReader {
     private final XSSFWorkbook workbook;
     private final FormulaEvaluator formulaEvaluator;
 
-    {
+    static {
         IOUtils.setByteArrayMaxOverride(1000000000);
     }
 
@@ -119,7 +119,11 @@ public class ExcelBookReader {
     }
 
     private String toPostgresType(Cell cell) {
-        switch (cell.getCellType()) {
+        CellType cellType = (cell.getCellType() == CellType.FORMULA)
+                ? formulaEvaluator.evaluateFormulaCell(cell)
+                : cell.getCellType();
+
+        switch (cellType) {
             case NUMERIC -> {
                 return DateUtil.isCellDateFormatted(cell) ? "TIMESTAMP" : "DOUBLE PRECISION";
             }

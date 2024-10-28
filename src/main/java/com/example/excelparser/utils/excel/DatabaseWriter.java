@@ -120,7 +120,7 @@ public class DatabaseWriter {
                 .collect(Collectors.joining(", "));
     }
 
-    private List<String> toFieldTypes(Map<String, String> postgresTypes/*, QueryPropertyHolder holder*/) {
+    private List<String> toFieldTypes(Map<String, String> postgresTypes) {
         return postgresTypes.entrySet()
                 .stream()
                 .map(Map.Entry::getValue)
@@ -148,7 +148,7 @@ public class DatabaseWriter {
 //            logError(e.getMessage());
 //            return false;
 //        }
-        return true;
+        return false;
     }
 
     private boolean createTable(final Connection connection,

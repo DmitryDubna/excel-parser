@@ -28,12 +28,14 @@ public class ExcelParserApplication {
             ExcelBookReader bookReader = new ExcelBookReader(inputStream);
 
             var propertyParser = ExcelProcessorPropertyParser.builder()
-                    .sheetNames(SHEET_NAMES_STRING.isBlank() ? bookReader.getFirstSheetName().orElse("") : SHEET_NAMES_STRING)
-                    .dbTableNames("Base, Dict")
+//                    .sheetNames(SHEET_NAMES_STRING.isBlank() ? bookReader.getFirstSheetName().orElse("") : SHEET_NAMES_STRING)
+                    .sheetNames("База, Код НП, Код станции")
+//                    .dbTableNames("Base, Dict")
+//                    .dataColumns("4-6, 8-11")
+                    .dataColumns("")
                     .firstDataRows("2, 2, 104")
-                    .dbFieldNames("one, two, three; np, name, normativ, eco_class, code_np; prod, station, station_code")
-                    .dataColumns("4-6, 8-11")
                     .lastDataRows("3, 3")
+                    .dbFieldNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
                     .build();
             System.out.println("propertyParser:\n" + propertyParser);
 
