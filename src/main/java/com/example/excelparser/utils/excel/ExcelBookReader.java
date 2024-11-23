@@ -2,6 +2,7 @@ package com.example.excelparser.utils.excel;
 
 import com.ibm.icu.text.Transliterator;
 import lombok.Getter;
+import lombok.NonNull;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.util.IOUtils;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -19,7 +20,7 @@ public class ExcelBookReader {
     private final XSSFWorkbook workbook;
     private final FormulaEvaluator formulaEvaluator;
 
-    static {
+    {
         IOUtils.setByteArrayMaxOverride(1000000000);
     }
 
@@ -119,7 +120,7 @@ public class ExcelBookReader {
     }
 
     private String toPostgresType(Cell cell) {
-        CellType cellType = (cell.getCellType() == CellType.FORMULA)
+        CellType cellType = (CellType.FORMULA == cell.getCellType())
                 ? formulaEvaluator.evaluateFormulaCell(cell)
                 : cell.getCellType();
 
@@ -136,20 +137,25 @@ public class ExcelBookReader {
         }
     }
 
-    public String toPostgresTableValues(Sheet sheet,
-                                        List<String> fieldTypes,
-                                        int rowFromIndex,
-                                        Optional<Integer> rowToIndex,
-                                        Optional<Integer> columnFromIndex,
-                                        Optional<Integer> columnToIndex) {
+    public Optional<String> toPostgresTableValues(Sheet sheet,
+                                                  List<String> fieldTypes,
+                                                  int rowFromIndex,
+                                                  Optional<Integer> rowToIndex,
+                                                  Optional<Integer> columnFromIndex,
+                                                  Optional<Integer> columnToIndex) {
+        if (rowFromIndex > sheet.getLastRowNum())
+            return Optional.empty();
+
         var result = new ArrayList<String>();
 
         // если индекс конечной строки не задан, берем индекс последней строки данных
         int rowToIndexValue = rowToIndex.orElseGet(() -> sheet.getLastRowNum());
+        // индекс последней строки не должен выходить за пределы данных листа
+        rowToIndexValue = Math.min(rowToIndexValue, sheet.getLastRowNum());
 
         // проверка индексов строк
-        if (!checkRowIndexValid(sheet, rowFromIndex) || ! checkRowIndexValid(sheet, rowToIndexValue))
-            return "";
+        if (!checkRowIndexValid(sheet, rowFromIndex) || !checkRowIndexValid(sheet, rowToIndexValue))
+            return Optional.empty();
 
         // если индексы колонок не заданы, берем диапазон списка имен полей
         int columnNumFrom = columnFromIndex.orElse(0);
@@ -157,16 +163,21 @@ public class ExcelBookReader {
 
         // проверка индексов колонок
         if (!checkColumnIndexesValid(columnNumFrom, columnNumTo, fieldTypes.size()))
-            return "";
+            return Optional.empty();
 
         for (int i = rowFromIndex; i <= rowToIndexValue; i++) {
-            String rowValues = toPostgresRowValues(sheet.getRow(i), fieldTypes, columnNumFrom, columnNumTo);
+            Row row = sheet.getRow(i);
+            // если строка null, то достигнут конец данных
+            if (Objects.isNull(row))
+                break;
+
+            String rowValues = toPostgresRowValues(row, fieldTypes, columnNumFrom, columnNumTo);
             result.add(rowValues);
         }
-        return String.join(", ", result);
+        return Optional.of(String.join(", ", result));
     }
 
-    private String toPostgresRowValues(Row row,
+    private String toPostgresRowValues(@NonNull Row row,
                                        List<String> fieldTypes,
                                        int columnFromIndex,
                                        int columnToIndex) {
@@ -179,10 +190,11 @@ public class ExcelBookReader {
             if (cellIndex > columnToIndex)
                 break;
 
-            Cell cell = row.getCell(cellIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+            Cell cell = row.getCell(cellIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
             values.add(Objects.isNull(cell) ? "null" : toPostgresString(cell, fieldTypes.get(i)));
         }
-        return values.stream().collect(Collectors.joining(", ", "(", ")"));
+        return values.stream()
+                .collect(Collectors.joining(", ", "(", ")"));
     }
 
     private String toPostgresString(Cell cell, String fieldType) {
@@ -212,7 +224,7 @@ public class ExcelBookReader {
             }
             case FORMULA -> {
                 Optional<Object> value = evaluateFormula(cell);
-                return value.map(String::valueOf).orElse("null");
+                return value.map(String::valueOf).orElse(null);
             }
             case STRING -> {
                 return (fieldType.equals("TEXT"))

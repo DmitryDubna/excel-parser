@@ -13,29 +13,35 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.logging.Logger;
+import java.util.regex.Pattern;
 
 @SpringBootApplication
 public class ExcelParserApplication {
 
 //    private static final String COLUMN_NAMES_STRING = "code, name, basis; np, name, normativ, eco_class, code_np; prod, station, station_code";
     private static final List<String> HEADER_NAMES = List.of("code", "name", "basis");
-    private static final ExcelProcessorPropertyParser.ParseMode PARSE_MODE = ExcelProcessorPropertyParser.ParseMode.ALL_TABLES_PER_SHEET;
+    private static final ExcelProcessorPropertyParser.ParseMode PARSE_MODE = ExcelProcessorPropertyParser.ParseMode.ONE_TABLE_PER_SHEET;
     private static String SHEET_NAMES_STRING = "";
 
     public static void main(String[] args) {
-        try (FileInputStream inputStream = new FileInputStream(new File("/home/dmitry/Загрузки/analize_data_2.xlsx"))) {
+
+//        String s = "   4  - 61,  43 -69,    18-   111   ";
+//        System.out.println(Pattern.matches("(\\s*\\d+\\s*-\\s*\\d+\\s*)+(,\\s*\\d+\\s*-\\s*\\d+\\s*)*", s));
+
+//        try (FileInputStream inputStream = new FileInputStream(new File("/home/dmitry/Загрузки/analize_data_2.xlsx"))) {
+        try (FileInputStream inputStream = new FileInputStream(new File("/home/dmitry/Загрузки/formy_otcheta_s_uchastka_2.xlsx"))) {
 
             ExcelBookReader bookReader = new ExcelBookReader(inputStream);
 
             var propertyParser = ExcelProcessorPropertyParser.builder()
 //                    .sheetNames(SHEET_NAMES_STRING.isBlank() ? bookReader.getFirstSheetName().orElse("") : SHEET_NAMES_STRING)
-                    .sheetNames("База, Код НП, Код станции")
+                    .sheetNames("Трудовые_Технические_ресурсы")
 //                    .dbTableNames("Base, Dict")
 //                    .dataColumns("4-6, 8-11")
-                    .dataColumns("")
-                    .firstDataRows("2, 2, 104")
-                    .lastDataRows("3, 3")
-                    .dbFieldNames("; np, name, normativ, eco_class, code_np; prod, station, station_code")
+//                    .dataColumns("")
+                    .firstDataRows("2")
+//                    .lastDataRows("3, 3")
+//                    .dbFieldNames("; np, name, normativ, eco_class, code_np; prod, station, station_code, test1, test2, test3")
                     .build();
             System.out.println("propertyParser:\n" + propertyParser);
 
@@ -46,7 +52,7 @@ public class ExcelParserApplication {
 //                    .connection(connection)
                     .bookReader(bookReader)
 //                    .schemeName("")
-                    .overwrite(true)
+                    .overwrite(false)
 //                    .logger(getLogger())
                     .build();
 

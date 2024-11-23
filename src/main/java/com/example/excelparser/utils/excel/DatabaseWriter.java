@@ -1,5 +1,6 @@
 package com.example.excelparser.utils.excel;
 
+import com.example.excelparser.utils.database.PostgresQueryService;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
@@ -12,7 +13,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.stream.Collectors;
 
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class DatabaseWriter {
@@ -22,68 +22,115 @@ public class DatabaseWriter {
     private ExcelBookReader bookReader;
     private String schemeName;
     private boolean overwrite;
+//    @NonNull
     private ComponentLog logger;
+    int rowsPerBatch;
 
+    private void logInfo(String msg) {
+        if (Objects.nonNull(logger))
+            logger.info(msg);
+    }
 
     public static DatabaseWriterBuilder builder() {
         return new DatabaseWriterBuilder();
     }
 
-    void logError(String msg) {
-        System.out.println(msg);
-//        if (Objects.nonNull(logger))
-//            logger.error(msg);
+    public void write(List<QueryPropertyHolder> queryPropertyHolders) throws RuntimeException {
+        queryPropertyHolders.forEach(this::write);
     }
 
-    public void write(List<QueryPropertyHolder> queryPropertyHolders) {
-        queryPropertyHolders.forEach(holder -> write(holder));
-    }
-
-    public void write(QueryPropertyHolder holder) {
+    public void write(QueryPropertyHolder holder) throws RuntimeException {
         Sheet sheet = bookReader.getWorkbook().getSheet(holder.getSheetName());
         String tableName = holder.getDbTableName();
-        // получение типов данных таблицы БД
-        Map<String, String> postgresTypes = getPostgresTypes(sheet, holder);
 
-        if (postgresTypes.isEmpty()) {
-            logError("Не удалось сформировать список типов данных.");
-            return;
-        }
+        Map<String, String> postgresTypes = preparePostgresTypes(sheet, holder);
+        var databaseService = new PostgresQueryService(connection, schemeName, tableName, logger);
+        tryCreateTable(databaseService, postgresTypes);
 
-        // проверка сущестовования таблицы БД
-        final boolean exists = checkIfTableExists(connection, schemeName, tableName);
-        if (!exists) {
-            // создание таблицы БД
-            String fieldsDefinition = toFieldsDefinition(postgresTypes);
-            createTable(connection, schemeName, tableName, fieldsDefinition);
-        }
-
-        // очистка таблицы
         if (overwrite)
-            truncateTable(connection, schemeName, tableName);
+            truncateTable(databaseService);
 
-        // имена полей
-        String fieldNames = toFieldNames(postgresTypes);
-        // значения полей
-        String fieldValues = toFieldValues(sheet, postgresTypes, holder);
-        if (fieldValues.isBlank()) {
-            logError("Не удалось сформировать список значений полей данных.");
-            return;
-        }
-        // заполнение таблицы
-        insertData(connection, schemeName, tableName, fieldNames, fieldValues);
+        writeData(databaseService, sheet, holder, postgresTypes);
     }
 
-    private String toFieldValues(Sheet sheet, Map<String, String> postgresTypes, QueryPropertyHolder holder) {
+    private Map<String, String> preparePostgresTypes(final Sheet sheet,
+                                                     final QueryPropertyHolder holder) throws RuntimeException {
+        logInfo("Формирование типов данных Postgres");
+        // формирование типов данных Postgres
+        Map<String, String> postgresTypes = getPostgresTypes(sheet, holder);
+        if (postgresTypes.isEmpty()) {
+            throw new RuntimeException("Не удалось сформировать список типов данных");
+        }
+        logInfo("Типы данных Postgres успешно сформированы:\n" + postgresTypes);
+
+        return postgresTypes;
+    }
+
+    private void tryCreateTable(final PostgresQueryService queryService,
+                                final Map<String, String> postgresTypes) throws RuntimeException {
+        logInfo("Подготовка таблицы БД к наполнению");
+        // попытка создания таблицы
+        if (!queryService.tryCreateTable(postgresTypes)) {
+            throw new RuntimeException("Не удалось создать таблицу БД");
+        }
+        logInfo("Таблица БД готова к наполнению");
+    }
+
+    private void truncateTable(final PostgresQueryService queryService) throws RuntimeException {
+        logInfo("Очистка таблицы БД");
+        if (!queryService.truncateTable())
+            throw new RuntimeException("Не удалось очистить таблицу БД");
+
+        logInfo("Таблица БД успешно очищена");
+    }
+
+    private void writeData(final PostgresQueryService queryService,
+                           final Sheet sheet,
+                           final QueryPropertyHolder holder,
+                           final Map<String, String> postgresTypes) throws RuntimeException {
+        logInfo("Подготовка данных для записи в БД");
+        // имена полей
+        String fieldNames = PostgresQueryService.toFieldNames(postgresTypes);
+
+        int rowFrom = holder.getFirstDataRow();
+        // значения полей
+        while (rowFrom <= sheet.getLastRowNum()) {
+            String indexRangeString = "[%d, %d]".formatted(rowFrom, rowFrom + rowsPerBatch - 1);
+
+            logInfo("Подготовка порции данных %s для записи в БД.".formatted(indexRangeString));
+            // формирование строки значений полей
+            Optional<String> fieldValues = toFieldValues(sheet, postgresTypes, holder, rowFrom, rowsPerBatch);
+            if (fieldValues.isEmpty())
+                throw new RuntimeException("Не удалось сформировать список значений полей данных из диапазона строк %s.".formatted(indexRangeString));
+
+            logInfo("Запись порции данных %s в БД".formatted(indexRangeString));
+            // заполнение таблицы
+            if (!queryService.insertData(fieldNames, fieldValues.get())) {
+                throw new RuntimeException("Не удалось записать порцию данных %s в БД".formatted(indexRangeString));
+            }
+
+            rowFrom += rowsPerBatch;
+        }
+
+        logInfo("Данные успешно записаны в БД");
+    }
+
+    private Optional<String> toFieldValues(Sheet sheet,
+                                           Map<String, String> postgresTypes,
+                                           QueryPropertyHolder holder,
+                                           int rowFromIndex,
+                                           int rowCount) {
+        // индекс последней строки данных пачки
+        var rowToIndex = Optional.of(rowFromIndex + rowCount - 1);
         // типы полей
-        List<String> fieldTypes = toFieldTypes(postgresTypes);
+        List<String> fieldTypes = PostgresQueryService.toFieldTypes(postgresTypes);
         // значения полей
         QueryPropertyHolder.DataColumnInfo columnInfo = holder.getDataColumnInfo().orElse(null);
         return bookReader.toPostgresTableValues(
                 sheet,
                 fieldTypes,
-                holder.getFirstDataRow(),
-                holder.getLastDataRow(),
+                rowFromIndex,
+                rowToIndex,
                 Objects.nonNull(columnInfo) ? Optional.of(columnInfo.getFrom()) : Optional.empty(),
                 Objects.nonNull(columnInfo) ? Optional.of(columnInfo.getTo()) : Optional.empty()
         );
@@ -106,115 +153,18 @@ public class DatabaseWriter {
                 : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames(), columnFrom, columnTo);
     }
 
-    private String toFieldsDefinition(Map<String, String> postgresTypes) {
-        return postgresTypes.entrySet()
-                .stream()
-                .map(entry -> "%s %s".formatted(entry.getKey(), entry.getValue()))
-                .collect(Collectors.joining(", "));
-    }
-
-    private String toFieldNames(Map<String, String> postgresTypes) {
-        return postgresTypes.entrySet()
-                .stream()
-                .map(Map.Entry::getKey)
-                .collect(Collectors.joining(", "));
-    }
-
-    private List<String> toFieldTypes(Map<String, String> postgresTypes) {
-        return postgresTypes.entrySet()
-                .stream()
-                .map(Map.Entry::getValue)
-                .collect(Collectors.toList());
-    }
-
-    private boolean checkIfTableExists(final Connection connection,
-                                       final String schemeName,
-                                       final String tableName) {
-        final String query = """
-                    SELECT EXISTS (
-                        SELECT 1
-                        FROM information_schema.tables
-                        WHERE table_schema = '%s'
-                            AND table_name = '%s'
-                    );
-                    """.formatted(schemeName, tableName);
-
-//        try (var statement = connection.createStatement()) {
-//            ResultSet resultSet = statement.executeQuery(query);
-//            return (resultSet.next())
-//                    ? resultSet.getBoolean(1)
-//                    : false;
-//        } catch (SQLException e) {
-//            logError(e.getMessage());
-//            return false;
-//        }
-        return false;
-    }
-
-    private boolean createTable(final Connection connection,
-                                final String schemeName,
-                                final String tableName,
-                                final String fieldsDefinition) {
-        final String query = """
-                CREATE TABLE %s.%s (%s);
-                """.formatted(schemeName, tableName, fieldsDefinition);
-
-        return executeUpdate(connection, query);
-    }
-
-    private boolean truncateTable(final Connection connection,
-                                  final String schemeName,
-                                  final String tableName) {
-        final String query = """
-                TRUNCATE TABLE %s.%s;
-                """.formatted(schemeName, tableName);
-
-        return executeUpdate(connection, query);
-    }
-
-    public boolean insertData(final Connection connection,
-                              final String schemeName,
-                              final String tableName,
-                              final String fieldNames,
-                              final String fieldValues) {
-
-        final String query = """
-                INSERT INTO %s.%s (%s)
-                VALUES %s;
-                """.formatted(
-                        schemeName,
-                        tableName,
-                        fieldNames,
-                        fieldValues
-                );
-
-        return executeUpdate(connection, query);
-    }
-
-    private boolean executeUpdate(Connection connection, String query) {
-        System.out.println("Query:\n%s\n".formatted(query));
-
-//        try (var statement = connection.createStatement()) {
-//            statement.executeUpdate(query);
-//            return true;
-//        } catch (SQLException e) {
-//            logError(e.getMessage());
-//            return false;
-//        }
-        return true;
-    }
-
     @NoArgsConstructor(access = AccessLevel.PRIVATE)
     public static class DatabaseWriterBuilder {
-//        @NonNull
+        @NonNull
         private Connection connection;
         @NonNull
         private ExcelBookReader bookReader;
         private String schemeName = "public";
         private boolean overwrite = true;
         private ComponentLog logger;
+        private int rowsPerBatch = 1000;
 
-        public DatabaseWriterBuilder connection(/*@NonNull*/ Connection connection) {
+        public DatabaseWriterBuilder connection(@NonNull Connection connection) {
             this.connection = connection;
             return this;
         }
@@ -226,7 +176,7 @@ public class DatabaseWriter {
 
         public DatabaseWriterBuilder schemeName(String schemeName) {
             if (!schemeName.isBlank())
-                this.schemeName = schemeName;
+                this.schemeName = schemeName.toLowerCase();
 
             return this;
         }
@@ -241,8 +191,13 @@ public class DatabaseWriter {
             return this;
         }
 
+        public DatabaseWriterBuilder rowsPerBatch(int rowsPerBatch) {
+            this.rowsPerBatch = rowsPerBatch;
+            return this;
+        }
+
         public DatabaseWriter build() {
-            return new DatabaseWriter(connection, bookReader, schemeName, overwrite, logger);
+            return new DatabaseWriter(connection, bookReader, schemeName, overwrite, logger, rowsPerBatch);
         }
     }
 }
