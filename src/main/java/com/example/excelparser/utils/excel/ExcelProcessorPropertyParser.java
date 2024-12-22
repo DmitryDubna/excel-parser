@@ -15,9 +15,12 @@ public class ExcelProcessorPropertyParser {
     @ToString.Exclude
     private static final Transliterator TRANSLITERATOR = Transliterator.getInstance("Russian-Latin/BGN");
     @ToString.Exclude
+    private final int DEFAULT_HEADER_ROW = 0;
+    @ToString.Exclude
     private final int DEFAULT_FIRST_DATA_ROW = 1;
     private List<String> sheetNames;
     private List<String> dbTableNames;
+    private List<Integer> headerRows;
     private List<Integer> firstDataRows;
     private List<List<String>> dbFieldNames;
     // расширенные данные
@@ -50,8 +53,10 @@ public class ExcelProcessorPropertyParser {
             QueryPropertyHolder propertyHolder = QueryPropertyHolder.builder()
                     .sheetName(sheetName)
                     .dbTableName((dbTableNames.size() > i) ? dbTableNames.get(i) : transliterate(sheetName))
-                    .firstDataRow((firstDataRows.size() > i) ? firstDataRows.get(i) : DEFAULT_FIRST_DATA_ROW)
                     .dbFieldNames((dbFieldNames.size() > i) ? dbFieldNames.get(i) : List.of())
+                    .headerRow((headerRows.size() > i) ? headerRows.get(i) : DEFAULT_HEADER_ROW)
+                    .firstDataRow((firstDataRows.size() > i) ? firstDataRows.get(i) : DEFAULT_FIRST_DATA_ROW)
+                    .lastDataRow((lastDataRows.size() > i) ? Optional.of(lastDataRows.get(i)) : Optional.empty())
                     .build();
             result.add(propertyHolder);
         }
@@ -71,10 +76,11 @@ public class ExcelProcessorPropertyParser {
             QueryPropertyHolder propertyHolder = QueryPropertyHolder.builder()
                     .sheetName(sheetName)
                     .dbTableName(resultTableNames.get(i))
-                    .firstDataRow((firstDataRows.size() > i) ? firstDataRows.get(i) : DEFAULT_FIRST_DATA_ROW)
                     .dbFieldNames((dbFieldNames.size() > i) ? dbFieldNames.get(i) : List.of())
-                    .dataColumnInfo((dataColumns.size() > i) ? Optional.of(dataColumns.get(i)) : Optional.empty())
+                    .headerRow((headerRows.size() > i) ? headerRows.get(i) : DEFAULT_HEADER_ROW)
+                    .firstDataRow((firstDataRows.size() > i) ? firstDataRows.get(i) : DEFAULT_FIRST_DATA_ROW)
                     .lastDataRow((lastDataRows.size() > i) ? Optional.of(lastDataRows.get(i)) : Optional.empty())
+                    .dataColumnInfo((dataColumns.size() > i) ? Optional.of(dataColumns.get(i)) : Optional.empty())
                     .build();
             result.add(propertyHolder);
         }
@@ -99,41 +105,41 @@ public class ExcelProcessorPropertyParser {
     public static class ExcelProcessorPropertyParserBuilder {
         private List<String> sheetNames = new ArrayList<>();
         private List<String> dbTableNames = new ArrayList<>();
+        private List<Integer> headerRows = new ArrayList<>();
         private List<Integer> firstDataRows = new ArrayList<>();
         private List<List<String>> dbFieldNames = new ArrayList<>();
         // расширенные данные
         private List<QueryPropertyHolder.DataColumnInfo> dataColumns = new ArrayList<>();
         private List<Integer> lastDataRows = new ArrayList<>();
 
-        public ExcelProcessorPropertyParserBuilder sheetNames(String sheetNames) {
+        public ExcelProcessorPropertyParserBuilder sheetNames(final String sheetNames) {
             this.sheetNames = StringUtils.toStringList(sheetNames, ",");
             return this;
         }
 
-        public ExcelProcessorPropertyParserBuilder dbTableNames(String dbTableNames) {
+        public ExcelProcessorPropertyParserBuilder dbTableNames(final String dbTableNames) {
             this.dbTableNames = StringUtils.toStringList(dbTableNames, ",");
             return this;
         }
 
-        public ExcelProcessorPropertyParserBuilder firstDataRows(String firstDataRows) {
-            List<String> strings = StringUtils.toStringList(firstDataRows, ",");
-            if (strings.isEmpty())
-                return this;
-
-            this.firstDataRows = strings.stream()
-                    .map(s -> Integer.valueOf(s) - 1)
-                    .collect(Collectors.toList());
+        public ExcelProcessorPropertyParserBuilder headerRows(final String headerRows) {
+            this.headerRows = StringUtils.toIntList(headerRows, ",", s -> Integer.valueOf(s) - 1);
             return this;
         }
 
-        public ExcelProcessorPropertyParserBuilder dbFieldNames(String dbFieldNames) {
+        public ExcelProcessorPropertyParserBuilder firstDataRows(final String firstDataRows) {
+            this.firstDataRows = StringUtils.toIntList(firstDataRows, ",", s -> Integer.valueOf(s) - 1);
+            return this;
+        }
+
+        public ExcelProcessorPropertyParserBuilder dbFieldNames(final String dbFieldNames) {
             this.dbFieldNames = Arrays.stream(dbFieldNames.split(";"))
                     .map(row -> StringUtils.toStringList(row, ","))
                     .collect(Collectors.toList());
             return this;
         }
 
-        public ExcelProcessorPropertyParserBuilder dataColumns (String dataColumns) {
+        public ExcelProcessorPropertyParserBuilder dataColumns (final String dataColumns) {
             List<String> strings = StringUtils.toStringList(dataColumns, ",");
             if (strings.isEmpty())
                 return this;
@@ -145,14 +151,8 @@ public class ExcelProcessorPropertyParser {
             return this;
         }
 
-        public ExcelProcessorPropertyParserBuilder lastDataRows(String lastDataRows) {
-            List<String> strings = StringUtils.toStringList(lastDataRows, ",");
-            if (strings.isEmpty())
-                return this;
-
-            this.lastDataRows = strings.stream()
-                    .map(s -> Integer.valueOf(s) - 1)
-                    .collect(Collectors.toList());
+        public ExcelProcessorPropertyParserBuilder lastDataRows(final String lastDataRows) {
+            this.lastDataRows = StringUtils.toIntList(lastDataRows, ",", s -> Integer.valueOf(s) - 1);
             return this;
         }
 
@@ -163,6 +163,7 @@ public class ExcelProcessorPropertyParser {
             return new ExcelProcessorPropertyParser(
                     sheetNames,
                     dbTableNames,
+                    headerRows,
                     firstDataRows,
                     dbFieldNames,
                     dataColumns,

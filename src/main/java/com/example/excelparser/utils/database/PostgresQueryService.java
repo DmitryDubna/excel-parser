@@ -13,7 +13,7 @@ import java.util.stream.Collectors;
 
 @AllArgsConstructor
 public class PostgresQueryService {
-//    @NonNull
+    @NonNull
     private Connection connection;
     @NonNull
     private String schemeName;
@@ -21,20 +21,28 @@ public class PostgresQueryService {
     private String tableName;
 //    @NonNull
     private ComponentLog logger;
+    
+    private void debug(final String msg) {
+        System.out.println("[debug]: " + msg);
+    }
+
+    private void error(final String msg) {
+        System.out.println("[error]: " + msg);
+    }
 
     public boolean tryCreateTable(Map<String, String> postgresTypes) {
-//        logger.debug("Проверка сущестовования таблицы БД");
+        debug("Проверка сущестовования таблицы БД");
         // проверка сущестовования таблицы БД
         final boolean exists = checkIfTableExists(connection, schemeName, tableName);
-//        logger.debug("Таблица БД существует: " + exists);
+        debug("Таблица БД существует: " + exists);
         if (exists)
             return true;
 
         // создание таблицы БД
         String fieldsDefinition = toFieldsDefinition(postgresTypes);
-//        logger.debug("Создание таблицы БД");
+        debug("Создание таблицы БД");
         boolean success = createTable(connection, schemeName, tableName, fieldsDefinition);
-//        logger.debug("Таблица БД создана: " + success);
+        debug("Таблица БД создана: " + success);
 
         return success;
     }
@@ -59,16 +67,15 @@ public class PostgresQueryService {
     }
 
     private boolean executeUpdate(Connection connection, String query) {
-//        try (var statement = connection.createStatement()) {
-//            statement.executeUpdate(query);
-//            return true;
-//        } catch (SQLException e) {
-//            logger.error(e.getMessage());
-//            // FIXME: убрать после тестирования
-//            logger.debug("Query:\n" + query.substring(0, Math.min(10000, query.length() - 1)));
-//            return false;
-//        }
-        return true;
+        try (var statement = connection.createStatement()) {
+            statement.executeUpdate(query);
+            return true;
+        } catch (SQLException e) {
+            error(e.getMessage());
+            // FIXME: убрать после тестирования
+            debug("Query:\n" + query.substring(0, Math.min(10000, query.length() - 1)));
+            return false;
+        }
     }
 
     private boolean checkIfTableExists(final Connection connection,
@@ -83,14 +90,13 @@ public class PostgresQueryService {
                     );
                     """.formatted(schemeName, tableName);
 
-//        try (var statement = connection.createStatement()) {
-//            ResultSet resultSet = statement.executeQuery(query);
-//            return resultSet.next() && resultSet.getBoolean("exists");
-//        } catch (SQLException e) {
-//            logger.error(e.getMessage());
-//            return false;
-//        }
-        return false;
+        try (var statement = connection.createStatement()) {
+            ResultSet resultSet = statement.executeQuery(query);
+            return resultSet.next() && resultSet.getBoolean("exists");
+        } catch (SQLException e) {
+            error(e.getMessage());
+            return false;
+        }
     }
 
     private boolean createTable(final Connection connection,

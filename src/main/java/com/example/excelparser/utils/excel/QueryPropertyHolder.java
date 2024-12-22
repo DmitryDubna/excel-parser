@@ -12,6 +12,7 @@ import java.util.stream.Collectors;
 public class QueryPropertyHolder {
     private String sheetName;
     private String dbTableName;
+    private int headerRow;
     private int firstDataRow;
     private List<String> dbFieldNames;
     @Builder.Default

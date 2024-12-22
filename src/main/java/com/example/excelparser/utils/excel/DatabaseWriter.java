@@ -16,7 +16,7 @@ import java.util.Optional;
 
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class DatabaseWriter {
-//    @NonNull
+    @NonNull
     private Connection connection;
     @NonNull
     private ExcelBookReader bookReader;
@@ -27,8 +27,7 @@ public class DatabaseWriter {
     int rowsPerBatch;
 
     private void logInfo(String msg) {
-        if (Objects.nonNull(logger))
-            logger.info(msg);
+        System.out.println(msg);
     }
 
     public static DatabaseWriterBuilder builder() {
@@ -93,13 +92,21 @@ public class DatabaseWriter {
         String fieldNames = PostgresQueryService.toFieldNames(postgresTypes);
 
         int rowFrom = holder.getFirstDataRow();
+        // убеждаемся, что заданный индекс последней строки данных не выходит за рамки данных листа
+        int lastDataRow = Math.min(
+                holder.getLastDataRow().orElse(sheet.getLastRowNum()),
+                sheet.getLastRowNum()
+        );
         // значения полей
-        while (rowFrom <= sheet.getLastRowNum()) {
-            String indexRangeString = "[%d, %d]".formatted(rowFrom, rowFrom + rowsPerBatch - 1);
+        while (rowFrom <= lastDataRow) {
+            // убеждаемся, что при обработке пачки данных не вышли за индекс последней строки данных
+            int rowTo = Math.min(rowFrom + rowsPerBatch - 1, lastDataRow);
+            String indexRangeString = "[%d, %d]".formatted(rowFrom, rowTo);
 
             logInfo("Подготовка порции данных %s для записи в БД.".formatted(indexRangeString));
             // формирование строки значений полей
-            Optional<String> fieldValues = toFieldValues(sheet, postgresTypes, holder, rowFrom, rowsPerBatch);
+            Optional<String> fieldValues = toFieldValues(sheet, postgresTypes, holder, rowFrom, rowTo);
+
             if (fieldValues.isEmpty())
                 throw new RuntimeException("Не удалось сформировать список значений полей данных из диапазона строк %s.".formatted(indexRangeString));
 
@@ -119,9 +126,7 @@ public class DatabaseWriter {
                                            Map<String, String> postgresTypes,
                                            QueryPropertyHolder holder,
                                            int rowFromIndex,
-                                           int rowCount) {
-        // индекс последней строки данных пачки
-        var rowToIndex = Optional.of(rowFromIndex + rowCount - 1);
+                                           int rowToIndex) {
         // типы полей
         List<String> fieldTypes = PostgresQueryService.toFieldTypes(postgresTypes);
         // значения полей
@@ -130,7 +135,7 @@ public class DatabaseWriter {
                 sheet,
                 fieldTypes,
                 rowFromIndex,
-                rowToIndex,
+                Optional.of(rowToIndex),
                 Objects.nonNull(columnInfo) ? Optional.of(columnInfo.getFrom()) : Optional.empty(),
                 Objects.nonNull(columnInfo) ? Optional.of(columnInfo.getTo()) : Optional.empty()
         );
@@ -146,9 +151,10 @@ public class DatabaseWriter {
                 ? Optional.of(columnInfo.getTo())
                 : Optional.empty();
 
+        // если имена полей не заданы, для формирования имен полей используется заголовок таблицы (транслитерация)
         return holder.getDbFieldNames().isEmpty()
                 // имена и типы данных для postgres (по строке заголовка)
-                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), 0, columnFrom, columnTo)
+                ? bookReader.getPostgresTypesByHeaderIndex(sheet, holder.getFirstDataRow(), holder.getHeaderRow(), columnFrom, columnTo)
                 // имена и типы данных для postgres (по списку имен полей)
                 : bookReader.getPostgresTypesByFieldNames(sheet, holder.getFirstDataRow(), holder.getDbFieldNames(), columnFrom, columnTo);
     }

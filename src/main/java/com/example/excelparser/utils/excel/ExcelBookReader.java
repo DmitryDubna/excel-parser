@@ -1,6 +1,7 @@
 package com.example.excelparser.utils.excel;
 
 import com.ibm.icu.text.Transliterator;
+import jakarta.annotation.Nullable;
 import lombok.Getter;
 import lombok.NonNull;
 import org.apache.poi.ss.usermodel.*;
@@ -171,7 +172,7 @@ public class ExcelBookReader {
             if (Objects.isNull(row))
                 break;
 
-            String rowValues = toPostgresRowValues(row, fieldTypes, columnNumFrom, columnNumTo);
+            String rowValues = toPostgresRowValues(sheet.getRow(i), fieldTypes, columnNumFrom, columnNumTo);
             result.add(rowValues);
         }
         return Optional.of(String.join(", ", result));
@@ -190,11 +191,10 @@ public class ExcelBookReader {
             if (cellIndex > columnToIndex)
                 break;
 
-            Cell cell = row.getCell(cellIndex, Row.MissingCellPolicy.CREATE_NULL_AS_BLANK);
+            Cell cell = row.getCell(cellIndex, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
             values.add(Objects.isNull(cell) ? "null" : toPostgresString(cell, fieldTypes.get(i)));
         }
-        return values.stream()
-                .collect(Collectors.joining(", ", "(", ")"));
+        return values.stream().collect(Collectors.joining(", ", "(", ")"));
     }
 
     private String toPostgresString(Cell cell, String fieldType) {
@@ -206,16 +206,7 @@ public class ExcelBookReader {
     private String toValue(Cell cell, String fieldType) {
         switch (cell.getCellType()) {
             case NUMERIC -> {
-                // дата
-                if (DateUtil.isCellDateFormatted(cell)) {
-                    return (fieldType.equals("TIMESTAMP"))
-                            ? cell.getLocalDateTimeCellValue().format(DateTimeFormatter.ISO_DATE)
-                            : null;
-                }
-                // число
-                return (fieldType.equals("DOUBLE PRECISION"))
-                        ? Double.valueOf(cell.getNumericCellValue()).toString()
-                        : null;
+                return toNumericString(cell, fieldType);
             }
             case BOOLEAN -> {
                 return (fieldType.equals("BOOLEAN"))
@@ -223,7 +214,7 @@ public class ExcelBookReader {
                         : null;
             }
             case FORMULA -> {
-                Optional<Object> value = evaluateFormula(cell);
+                Optional<Object> value = evaluateFormula(cell, fieldType);
                 return value.map(String::valueOf).orElse(null);
             }
             case STRING -> {
@@ -237,12 +228,28 @@ public class ExcelBookReader {
         }
     }
 
-    private Optional<Object> evaluateFormula(Cell cell) {
+    @Nullable
+    private String toNumericString(Cell cell, String fieldType) {
+        // дата
+        if (DateUtil.isCellDateFormatted(cell)) {
+            return (fieldType.equals("TIMESTAMP"))
+                    ? cell.getLocalDateTimeCellValue().format(DateTimeFormatter.ISO_DATE)
+                    : null;
+        }
+        // число
+        return (fieldType.equals("DOUBLE PRECISION"))
+                ? Double.valueOf(cell.getNumericCellValue()).toString()
+                : null;
+    }
+
+    private Optional<Object> evaluateFormula(Cell cell, String fieldType) {
         CellType cellType = formulaEvaluator.evaluateFormulaCell(cell);
 
         switch (cellType) {
             case NUMERIC -> {
-                return Optional.of(cell.getNumericCellValue());
+//                return Optional.of(cell.getNumericCellValue());
+                return Optional.ofNullable(toNumericString(cell, fieldType));
+
             }
             case STRING -> {
                 return Optional.ofNullable(cell.getStringCellValue());
